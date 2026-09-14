@@ -119,6 +119,18 @@ class TestGetOracleConnection:
         assert kwargs["tcp_connect_timeout"] == 10
         assert "config_dir" not in kwargs
         assert fake.return_value.fetch_lobs is False
+        assert fake.return_value.call_timeout == 60000
+
+    def test_call_timeout_can_be_disabled(self, monkeypatch):
+        configure(monkeypatch, call_timeout=0)
+
+        class StubConnection:
+            pass
+
+        stub = StubConnection()
+        monkeypatch.setattr(server.oracledb, "connect", MagicMock(return_value=stub))
+        get_oracle_connection()
+        assert not hasattr(stub, "call_timeout")
 
     def test_wallet_arguments(self, monkeypatch):
         configure(monkeypatch)
@@ -236,6 +248,21 @@ class TestListTables:
         assert "all_tables" in sql and "all_views" in sql
         assert binds == {"owner": "ORAVIZ"}
         assert "| ORAVIZ | SALES_DEMO | TABLE |" in text
+
+    def test_large_schemas_are_truncated(self, monkeypatch):
+        configure(monkeypatch, max_rows=1)
+        patch_connection(
+            monkeypatch,
+            {
+                "description": [("OWNER",), ("TABLE_NAME",), ("OBJECT_TYPE",)],
+                "rows": [("SCOTT", "A", "TABLE"), ("SCOTT", "B", "TABLE")],
+            },
+        )
+        text = list_tables()
+        assert text.splitlines()[0] == (
+            "1 row(s) (truncated; more rows exist) | columns: OWNER, TABLE_NAME, OBJECT_TYPE"
+        )
+        assert "| SCOTT | B | TABLE |" not in text
 
     def test_invalid_schema(self, monkeypatch):
         configure(monkeypatch)

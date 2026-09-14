@@ -18,8 +18,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "mcp[cli]>=1.21.0",
-    "fastmcp>=2.11.3",
+    "fastmcp>=4.0.0",
     "oracledb>=2.5.0",
     "matplotlib>=3.9.0",
     "python-dotenv>=1.0.0",

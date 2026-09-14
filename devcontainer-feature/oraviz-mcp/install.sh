@@ -48,3 +48,6 @@ else
     echo ORACLE_PORT=$ORACLE_PORT >> $ENV_PATH || true
     echo ORACLE_SERVICE=$ORACLE_SERVICE >> $ENV_PATH || true
 fi
+
+# The env file holds credentials: keep it readable only by its owner.
+chmod 600 "$ENV_PATH" 2>/dev/null || true

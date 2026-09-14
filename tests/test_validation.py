@@ -87,15 +87,16 @@ class TestIdentifiers:
 
 class TestValidateMaxRows:
     def test_passes_through(self):
-        assert validate_max_rows(10, cap=500) == 10
+        assert validate_max_rows(10) == 10
 
-    def test_clamps_to_cap(self):
-        assert validate_max_rows(1000, cap=50) == 50
+    def test_clamps_to_configured_maximum(self, monkeypatch):
+        monkeypatch.setattr(config, "max_rows", 50)
+        assert validate_max_rows(1000) == 50
 
     @pytest.mark.parametrize("bad", [0, -1, True, "10", None])
     def test_rejects_bad_values(self, bad):
         with pytest.raises(ValueError):
-            validate_max_rows(bad, cap=10)
+            validate_max_rows(bad)
 
 
 class TestFormatValue:
@@ -109,6 +110,11 @@ class TestFormatValue:
     def test_non_finite(self):
         assert format_value(float("nan")) == "nan"
         assert format_value(decimal.Decimal("Infinity")) == "Infinity"
+
+    def test_high_precision_decimal_stays_exact(self):
+        # Would round to 1.2345678901234568e+19 as a float; keep the exact digits.
+        assert format_value(decimal.Decimal("12345678901234567890.12")) == "12345678901234567890.12"
+        assert format_value(decimal.Decimal("0.1")) == 0.1
 
     def test_dates(self):
         assert format_value(datetime(2026, 9, 14, 0, 0)) == "2026-09-14"
@@ -139,6 +145,15 @@ class TestFormatValue:
 
         assert format_value(Lob()) == "some text"
         assert format_value(BinaryLob()) == "<binary 5 bytes>"
+
+    def test_long_lob_text_is_truncated(self, monkeypatch):
+        monkeypatch.setattr(config, "max_cell_chars", 10)
+
+        class Lob:
+            def read(self):
+                return "0123456789abcdef"
+
+        assert format_value(Lob()) == "0123456789..."
 
     def test_long_strings_are_truncated(self, monkeypatch):
         monkeypatch.setattr(config, "max_cell_chars", 10)
@@ -185,3 +200,7 @@ class TestRenderRows:
         text = render_rows(["A", "B"], [])
         assert text.splitlines()[0] == "0 row(s) | columns: A, B"
         assert "| A | B |" in text
+
+    def test_escapes_column_names(self):
+        text = render_rows(["A|B", "C\nD"], [(1, 2)])
+        assert "| A\\|B | C D |" in text

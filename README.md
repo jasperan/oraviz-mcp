@@ -48,7 +48,7 @@ Two ideas shape everything:
 - **Charts, not query dumps** -- `create_chart` renders bar, line, area, scatter, pie, and histogram charts with an Oracle-red palette and returns the PNG as MCP image content.
 - **Context-engineered results** -- bounded previews with explicit `truncated` metadata, one header per table instead of repeated JSON keys, CLOB/BLOB/VECTOR summarised, per-cell truncation.
 - **Profile before you plot** -- `profile_table` returns per-column nulls, distinct counts, min/max/avg so the model can pick the right chart without fetching rows.
-- **Read-only by construction** -- only a single `SELECT`/`WITH` statement ever reaches the database; DDL, DML, and PL/SQL are rejected before connecting.
+- **Read-only by design** -- validation admits a single `SELECT`/`WITH` statement (DDL, DML, and PL/SQL are rejected before connecting), every query is stopped by `ORACLE_CALL_TIMEOUT`, and row and cell caps apply everywhere. The guard is lexical; for a hard boundary, point OraViz at a read-only database account.
 - **Minimal surface** -- 7 tools, ~600 statements of source, stdio/http/sse/streamable-http transports, structured JSON logs on stderr (stdout stays clean for stdio).
 - **Zero client install** -- python-oracledb thin mode; no Oracle Instant Client, no `ORACLE_HOME`, no tnsnames.
 
@@ -61,6 +61,7 @@ Every row-returning tool follows the same rules, and the test suite asserts them
 | Query preview size (`execute_query` without `max_rows`) | 25 rows | `ORACLE_MCP_PREVIEW_ROWS` |
 | Hard row cap per query (charts included) | 500 rows | `ORACLE_MCP_MAX_ROWS` |
 | Longest cell before `...` truncation | 500 chars | `ORACLE_MCP_MAX_CELL_CHARS` |
+| Statement timeout | 60 s | `ORACLE_CALL_TIMEOUT` |
 | Metadata header per result | `<n> row(s) (truncated; more rows exist) \| columns: A, B` | -- |
 
 A tool result therefore looks like this instead of a 25-dictionary JSON array:
@@ -236,6 +237,8 @@ The model will call `profile_table`, pick a chart type, run `create_chart`, and 
 | `ORACLE_MCP_PREVIEW_ROWS` | Default preview size for `execute_query` | `25` |
 | `ORACLE_MCP_MAX_ROWS` | Hard row cap per query | `500` |
 | `ORACLE_MCP_MAX_CELL_CHARS` | Per-cell truncation limit | `500` |
+| `ORACLE_CONNECT_TIMEOUT` | TCP connect timeout, seconds | `10` |
+| `ORACLE_CALL_TIMEOUT` | Per-statement timeout, seconds (`0` disables) | `60` |
 | `ORACLE_MCP_SERVER_TRANSPORT` | `stdio` (default), `http`, `sse`, `streamable-http` | `stdio` |
 | `ORACLE_MCP_BIND_HOST` | Bind host for network transports | `127.0.0.1` |
 | `ORACLE_MCP_BIND_PORT` | Bind port for network transports | `8080` |
@@ -243,6 +246,9 @@ The model will call `profile_table`, pick a chart type, run `create_chart`, and 
 | `LOG_LEVEL` | structlog level number | `20` (INFO) |
 
 Copy [`.env.template`](.env.template) to `.env` -- the server loads it via python-dotenv.
+
+The network transports (`http`, `sse`, `streamable-http`) have no built-in authentication. Keep the default
+`127.0.0.1` bind, or put an authenticating proxy in front of the port before exposing it.
 
 ## Architecture
 
@@ -271,7 +277,7 @@ python-oracledb thin connection -> rows are narrowed (fetch cap) -> either rende
 
 ```bash
 uv sync --extra dev          # install everything (matplotlib, fastmcp, oracledb, pytest)
-uv run pytest                # hermetic unit suite, 98% coverage enforced (fail_under = 90)
+uv run pytest                # hermetic unit suite (~98% line coverage; the 90% gate is enforced)
 uv run pytest -k chart       # focus on one area
 
 # Live integration tests against the 26ai Free container from Quick Start

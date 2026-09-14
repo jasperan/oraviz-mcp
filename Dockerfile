@@ -58,7 +58,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD if [ "$ORACLE_MCP_SERVER_TRANSPORT" = "http" ] || [ "$ORACLE_MCP_SERVER_TRANSPORT" = "sse" ] || [ "$ORACLE_MCP_SERVER_TRANSPORT" = "streamable-http" ]; then \
             curl -f "http://localhost:${ORACLE_MCP_BIND_PORT}/health" || exit 1; \
         else \
-            pgrep -f oraviz-mcp || exit 1; \
+            pgrep -f "[o]raviz-mcp" || exit 1; \
         fi
 
 # Entrypoint

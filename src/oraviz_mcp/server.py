@@ -13,7 +13,7 @@ import math
 import os
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
@@ -23,8 +23,9 @@ import oracledb
 import structlog
 from fastmcp import FastMCP
 from fastmcp.utilities.types import Image
+from starlette.responses import JSONResponse
 
-from oraviz_mcp.charts import CHART_TYPES, ChartError, render_chart
+from oraviz_mcp.charts import CHART_TYPES, render_chart
 
 # ---------------------------------------------------------------------------
 # Logging (stderr only: stdout belongs to the stdio MCP transport)
@@ -59,6 +60,12 @@ logger = structlog.get_logger()
 
 dotenv.load_dotenv()
 mcp = FastMCP("Oracle Viz MCP")
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request) -> JSONResponse:
+    """Liveness endpoint for container health checks on network transports."""
+    return JSONResponse({"status": "ok"})
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -97,16 +104,26 @@ class MCPServerConfig:
             raise ValueError("MCP BIND PORT is required")
 
 
-def _int_env(name: str, default: int) -> int:
+def _int_env(name: str, default: int, minimum: Optional[int] = None) -> int:
     """Read an integer environment variable, falling back with a warning."""
     raw = os.environ.get(name)
     if raw is None or not str(raw).strip():
         return default
     try:
-        return int(str(raw).strip())
+        value = int(str(raw).strip())
     except ValueError:
         logger.warning("Invalid integer environment variable, using default", variable=name, default=default)
         return default
+    if minimum is not None and value < minimum:
+        logger.warning(
+            "Out-of-range integer environment variable, using default",
+            variable=name,
+            value=value,
+            minimum=minimum,
+            default=default,
+        )
+        return default
+    return value
 
 
 @dataclass
@@ -114,7 +131,7 @@ class OracleConfig:
     """Oracle connection and server configuration."""
 
     user: str
-    password: str
+    password: str = field(repr=False)
     host: str
     port: int
     service: str
@@ -123,8 +140,10 @@ class OracleConfig:
     # Optional: Oracle wallet (Autonomous Database / mTLS).
     config_dir: Optional[str] = None
     wallet_location: Optional[str] = None
-    wallet_password: Optional[str] = None
+    wallet_password: Optional[str] = field(default=None, repr=False)
     connect_timeout: int = 10
+    # Abort any statement running longer than this many seconds (0 disables).
+    call_timeout: int = 60
     max_rows: int = 500
     preview_rows: int = 25
     max_cell_chars: int = 500
@@ -154,10 +173,11 @@ config = OracleConfig(
     config_dir=os.environ.get("ORACLE_CONFIG_DIR") or None,
     wallet_location=os.environ.get("ORACLE_WALLET_LOCATION") or None,
     wallet_password=os.environ.get("ORACLE_WALLET_PASSWORD") or None,
-    connect_timeout=_int_env("ORACLE_CONNECT_TIMEOUT", 10),
-    max_rows=_int_env("ORACLE_MCP_MAX_ROWS", 500),
-    preview_rows=_int_env("ORACLE_MCP_PREVIEW_ROWS", 25),
-    max_cell_chars=_int_env("ORACLE_MCP_MAX_CELL_CHARS", 500),
+    connect_timeout=_int_env("ORACLE_CONNECT_TIMEOUT", 10, minimum=1),
+    call_timeout=_int_env("ORACLE_CALL_TIMEOUT", 60, minimum=0),
+    max_rows=_int_env("ORACLE_MCP_MAX_ROWS", 500, minimum=1),
+    preview_rows=_int_env("ORACLE_MCP_PREVIEW_ROWS", 25, minimum=1),
+    max_cell_chars=_int_env("ORACLE_MCP_MAX_CELL_CHARS", 500, minimum=1),
     mcp_server_config=MCPServerConfig(
         mcp_server_transport=os.environ.get("ORACLE_MCP_SERVER_TRANSPORT", "stdio").lower(),
         mcp_bind_host=os.environ.get("ORACLE_MCP_BIND_HOST", "127.0.0.1"),
@@ -189,6 +209,8 @@ def get_oracle_connection() -> oracledb.Connection:
     try:
         connection = oracledb.connect(**connection_arguments)
         connection.fetch_lobs = False  # return CLOB as str and BLOB as bytes
+        if config.call_timeout > 0:
+            connection.call_timeout = config.call_timeout * 1000  # python-oracledb uses milliseconds
         logger.debug("Oracle connection established", dsn=config.connection_dsn())
         return connection
     except oracledb.Error as error:
@@ -209,7 +231,10 @@ def format_value(value: Any) -> Any:
         return value if math.isfinite(value) else str(value)
     if isinstance(value, decimal.Decimal):
         number = float(value)
-        return number if math.isfinite(number) else str(value)
+        if math.isfinite(number) and decimal.Decimal(str(number)) == value:
+            return number
+        # Too many significant digits for a float: keep the exact value.
+        return str(value)
     if isinstance(value, datetime):
         # Midnight timestamps are dates in practice; keep the cell short.
         return value.date().isoformat() if value.time() == time(0, 0) else value.isoformat()
@@ -223,18 +248,23 @@ def format_value(value: Any) -> Any:
         return f"<VECTOR({len(value.values)})>"
     if hasattr(value, "read"):  # LOB that fetch_lobs did not convert
         data = value.read()
-        return data if isinstance(data, str) else f"<binary {len(data)} bytes>"
+        if isinstance(data, str):
+            limit = config.max_cell_chars
+            return data if len(data) <= limit else data[:limit] + "..."
+        return f"<binary {len(data)} bytes>"
     text = str(value)
-    limit = config.max_cell_chars if config.max_cell_chars > 0 else 500
+    limit = config.max_cell_chars
     return text if len(text) <= limit else text[:limit] + "..."
 
 
-def _fetch_rows(cursor: oracledb.Cursor) -> Tuple[List[str], List[tuple]]:
-    """Return (columns, rows) from a cursor's current fetch window."""
+def _fetch_rows(cursor: oracledb.Cursor, limit: int) -> Tuple[List[str], List[tuple], bool]:
+    """Return (columns, rows, truncated) from a cursor, fetching at most limit rows."""
     columns = [description[0] for description in (cursor.description or [])]
     if not columns:
-        return [], []
-    return columns, cursor.fetchall()
+        return [], [], False
+    fetched = cursor.fetchmany(limit + 1)
+    truncated = len(fetched) > limit
+    return columns, fetched[:limit], truncated
 
 
 # ---------------------------------------------------------------------------
@@ -247,12 +277,16 @@ def _fetch_rows(cursor: oracledb.Cursor) -> Tuple[List[str], List[tuple]]:
 # ---------------------------------------------------------------------------
 
 
+def _escape_text(text: str) -> str:
+    """Keep a value from breaking out of its markdown table cell."""
+    return text.replace("|", "\\|").replace("\r", "").replace("\n", " ")
+
+
 def _cell_text(value: Any) -> str:
     """Render one cell, keeping the table structure intact and the size bounded."""
     if value is None:
         return "null"
-    text = str(format_value(value))
-    return text.replace("|", "\\|").replace("\r", "").replace("\n", " ")
+    return _escape_text(str(format_value(value)))
 
 
 def render_rows(
@@ -270,7 +304,7 @@ def render_rows(
     meta += " | columns: " + ", ".join(columns)
     if note:
         meta += " | " + note
-    header = "| " + " | ".join(columns) + " |"
+    header = "| " + " | ".join(_escape_text(str(column)) for column in columns) + " |"
     divider = "|" + "|".join("---" for _ in columns) + "|"
     body = ["| " + " | ".join(_cell_text(value) for value in row) + " |" for row in rows]
     return "\n".join([meta, "", header, divider, *body])
@@ -340,12 +374,11 @@ def validate_column_name(column: str) -> str:
     return _validate_identifier(column, _COLUMN_NAME_PATTERN, "column name")
 
 
-def validate_max_rows(max_rows: int, cap: Optional[int] = None) -> int:
+def validate_max_rows(max_rows: int) -> int:
     """Validate a positive row cap and clamp it to the configured maximum."""
     if isinstance(max_rows, bool) or not isinstance(max_rows, int) or max_rows <= 0:
         raise ValueError(f"max_rows must be a positive integer, got: {max_rows}")
-    limit = cap if cap and cap > 0 else config.max_rows
-    return min(max_rows, limit)
+    return min(max_rows, config.max_rows)
 
 
 def quote_identifier(identifier: str) -> str:
@@ -432,7 +465,7 @@ def _table_exists(schema: Optional[str], table: str) -> bool:
 
 
 def _markdown_preview(columns: List[str], rows: List[tuple], limit: int = 5) -> str:
-    header = "| " + " | ".join(columns) + " |"
+    header = "| " + " | ".join(_escape_text(str(column)) for column in columns) + " |"
     divider = "|" + "|".join("---" for _ in columns) + "|"
     body = [
         "| " + " | ".join(_cell_text(value) for value in row) + " |"
@@ -465,7 +498,7 @@ def execute_query(query: str, max_rows: Optional[int] = None) -> str:
         limit = validate_max_rows(max_rows)
     else:
         limit = min(config.preview_rows, config.max_rows)
-    logger.info("Executing query", query_preview=query[:100], max_rows=limit)
+    logger.debug("Executing query", query_preview=query[:100], max_rows=limit)
     try:
         columns, rows, truncated = _run_query(query, limit)
         logger.info("Query executed successfully", row_count=len(rows), truncated=truncated)
@@ -509,8 +542,8 @@ def list_tables(schema: Optional[str] = None) -> str:
         with get_oracle_connection() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(sql, binds)
-                columns, rows = _fetch_rows(cursor)
-        result = render_rows(columns, rows)
+                columns, rows, truncated = _fetch_rows(cursor, config.max_rows)
+        result = render_rows(columns, rows, truncated=truncated)
         logger.info("Tables listed successfully", object_count=len(rows), schema=schema)
         return result
     except (oracledb.Error, ValueError) as error:
@@ -543,7 +576,7 @@ def get_table_schema(table_name: str) -> str:
                 SELECT cc.column_name
                 FROM {prefix}constraints cst
                 JOIN {prefix}cons_columns cc
-                  ON cst.constraint_name = cc.constraint_name
+                  ON cst.constraint_name = cc.constraint_name AND cst.owner = cc.owner
                 WHERE cst.constraint_type = 'P' AND cst.table_name = :table_name
                 {"AND cst.owner = :owner" if schema else ""}
             ) pk ON pk.column_name = c.column_name
@@ -553,13 +586,14 @@ def get_table_schema(table_name: str) -> str:
         with get_oracle_connection() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(sql, binds)
-                columns, rows = _fetch_rows(cursor)
+                columns, rows, truncated = _fetch_rows(cursor, config.max_rows)
         if not rows:
             raise ValueError(f"Table or view '{table_name}' was not found or has no accessible columns.")
         projected = [tuple(row[index] for index in (0, 1, 2, 5, 6)) for row in rows]
         result = render_rows(
             ["COLUMN_NAME", "DATA_TYPE", "DATA_LENGTH", "NULLABLE", "PRIMARY_KEY"],
             projected,
+            truncated=truncated,
         )
         logger.info("Schema retrieved successfully", table_name=table_name, column_count=len(rows))
         return result
@@ -591,7 +625,7 @@ def sample_table_data(table_name: str, sample_size: int = 10) -> str:
         with get_oracle_connection() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(sql)
-                columns, rows = _fetch_rows(cursor)
+                columns, rows, _ = _fetch_rows(cursor, limit)
         result = render_rows(
             columns,
             rows,
@@ -682,7 +716,7 @@ def get_table_details(table_name: str, exact_row_count: bool = False) -> Dict[st
 
 _NUMERIC_TYPES = ("NUMBER", "FLOAT", "BINARY_FLOAT", "BINARY_DOUBLE")
 _DATE_TYPES = ("DATE", "TIMESTAMP")
-_CHARACTER_TYPES = ("CHAR", "VARCHAR2", "NCHAR", "NVARCHAR2", "LONG")
+_CHARACTER_TYPES = ("CHAR", "VARCHAR2", "NCHAR", "NVARCHAR2")
 
 
 def _profile_metrics(data_type: str) -> List[str]:
@@ -726,7 +760,7 @@ def profile_table(
         if not table_columns:
             raise ValueError(f"Table or view '{table_name}' was not found.")
         if columns:
-            wanted = [validate_column_name(column) for column in columns]
+            wanted = list(dict.fromkeys(validate_column_name(column) for column in columns))
             available = {column["column_name"]: column for column in table_columns}
             missing = [column for column in wanted if column not in available]
             if missing:
@@ -742,9 +776,9 @@ def profile_table(
         for column in selected:
             quoted = quote_identifier(column["column_name"])
             for metric in _profile_metrics(column["data_type"]):
+                alias = f"{column['column_name']}__{metric.upper()}"[:128]
                 select_parts.append(
-                    f"{_METRIC_EXPRESSION[metric].format(column=quoted)} "
-                    f'AS "{column["column_name"]}__{metric.upper()}"'
+                    f"{_METRIC_EXPRESSION[metric].format(column=quoted)} AS \"{alias}\""
                 )
                 metrics.append((column["column_name"], metric))
 
@@ -806,11 +840,11 @@ def create_chart(
     y_label: Optional[str] = None,
 ) -> list:
     """Render a SQL result set as a PNG chart (returned as image + text preview)."""
-    logger.info("Rendering chart", chart_type=chart_type, query_preview=sql[:100])
+    logger.debug("Rendering chart", chart_type=chart_type, query_preview=sql[:100])
     try:
         columns, rows, truncated = _run_query(sql, config.max_rows)
         png = render_chart(columns, rows, chart_type, title=title, x_label=x_label, y_label=y_label)
-    except (oracledb.Error, ValueError, ChartError) as error:
+    except (oracledb.Error, ValueError) as error:
         logger.error("Chart rendering failed", error=str(error), exception_type=type(error).__name__)
         raise
 

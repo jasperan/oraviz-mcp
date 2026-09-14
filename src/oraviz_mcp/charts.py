@@ -12,11 +12,8 @@ import io
 import math
 from typing import Any, List, Optional, Sequence, Tuple
 
-import matplotlib
-
-matplotlib.use("Agg")  # must precede the pyplot import
-
-import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 
 CHART_TYPES = ("bar", "line", "area", "scatter", "pie", "histogram")
 
@@ -249,7 +246,9 @@ def render_chart(
         )
     columns, rows = _prepare(columns, rows)
 
-    figure, ax = plt.subplots(figsize=(9.0, 5.0), dpi=144)
+    figure = Figure(figsize=(9.0, 5.0), dpi=144)
+    FigureCanvasAgg(figure)
+    ax = figure.add_subplot()
     figure.patch.set_facecolor("#FFFFFF")
     ax.set_facecolor("#FFFFFF")
     try:
@@ -274,4 +273,4 @@ def render_chart(
         figure.savefig(buffer, format="png", bbox_inches="tight", facecolor=figure.get_facecolor())
         return buffer.getvalue()
     finally:
-        plt.close(figure)
+        figure.clear()

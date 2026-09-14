@@ -73,6 +73,12 @@ class TestOracleConfig:
         assert cfg.preview_rows == 25
         assert cfg.max_cell_chars == 500
         assert cfg.connect_timeout == 10
+        assert cfg.call_timeout == 60
+
+    def test_repr_hides_secrets(self):
+        cfg = self._config(password="tiger", wallet_password="wallet-secret")
+        assert "tiger" not in repr(cfg)
+        assert "wallet-secret" not in repr(cfg)
 
 
 class TestIntEnv:
@@ -91,6 +97,14 @@ class TestIntEnv:
     def test_defaults_when_invalid(self, monkeypatch):
         monkeypatch.setenv("ORAVIZ_TEST_INT", "not-a-number")
         assert _int_env("ORAVIZ_TEST_INT", 7) == 7
+
+    def test_minimum_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("ORAVIZ_TEST_INT", "-5")
+        assert _int_env("ORAVIZ_TEST_INT", 7, minimum=1) == 7
+
+    def test_minimum_accepts_the_boundary(self, monkeypatch):
+        monkeypatch.setenv("ORAVIZ_TEST_INT", "0")
+        assert _int_env("ORAVIZ_TEST_INT", 7, minimum=0) == 0
 
     def test_module_config_is_wired(self):
         assert isinstance(config.port, int)
