@@ -11,10 +11,11 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY src/ ./src/
 
-# Create the virtual environment and install runtime dependencies
+# Create the virtual environment and install runtime dependencies.
+# --no-editable installs the project as a wheel so the runtime stage only needs .venv.
 RUN uv venv && \
     . .venv/bin/activate && \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-dev --no-editable
 
 # Runtime stage
 FROM python:3.12-slim-bookworm
