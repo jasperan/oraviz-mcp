@@ -1,0 +1,27 @@
+\section{Introduction}\label{sec:introduction}
+
+The Model Context Protocol (MCP) has become a common way for agents to reach external systems \cite{anthropicmcp2024, mcpspec2025}. Each connected server promotes its capabilities into the agent's context window through two channels: tool schemas, which the agent reads once per session to decide what it can do, and tool results, which the agent reads on every call. Both channels are billed in tokens, and both are controlled by the server author rather than by the agent. A database MCP server that returns full result sets, or that ships verbose general-purpose tool contracts, spends the agent's context on material that may never contribute to the task.
+
+The position taken in this report is that MCP server design is, in large part, context engineering. OraViz is the artifact of that position: a minimal server for Oracle AI Database that exposes seven single-purpose tools and enforces a hard context contract on everything it returns. The evaluation poses identical questions to OraViz and to the official Oracle SQLcl MCP server against the same database instance and counts the tokens an agent must process to arrive at the answers.
+
+\subsection{Motivation}
+
+\textbf{Schema bloat is paid up front.} General-purpose servers describe rich tools with long parameter surfaces, and the agent pays for that documentation before any work begins, on every session, whether or not the tools are used. The SQLcl MCP server, for example, exposes seven tools whose combined schemas cost $2{,}139$ tokens in our measurement; OraViz's schemas cost $844$.
+
+\textbf{Unbounded results are the norm.} A faithful database tool returns what the query selects. A single exploratory \texttt{SELECT *} over a moderate table can dominate the context window, even though the agent's question likely concerns the shape of the data rather than every row in it.
+
+\textbf{Faithful formats grow linearly.} Result encodings that are faithful to the database, such as CSV dumps or formatted text tables, scale with row count, so their cost is set by the data rather than by the agent's budget. Nothing in the protocol requires that presentation to be unbounded.
+
+\textbf{Some answers are pictures.} Questions about trends, distributions, and comparisons are often best answered visually. A text-only interface forces those answers through rows of numbers, whereas one image plus a short caption can carry the same information with a text budget that is independent of the row count.
+
+\subsection{Contributions}
+
+\begin{enumerate}
+  \item We present \textbf{OraViz}, a minimal, visualization-first MCP server for Oracle AI Database with seven tools: bounded query execution, object listing, schema and detail introspection, sampling, profiling, and chart rendering.
+  \item We formalize a \textbf{context contract} for tool results in Section~\ref{sec:system-model}: preview caps with explicit truncation metadata, per-cell truncation, value summarization, and profile-first chart selection, yielding token bounds that are independent of result-set size.
+  \item We build an \textbf{open benchmark harness} that poses identical questions to OraViz and to the official Oracle SQLcl MCP server against the same database and counts the tokens an agent must process (tool schemas plus tool results) using \texttt{tiktoken}.
+  \item We report the resulting \textbf{token economics} in Section~\ref{sec:evaluation}: $53.7$\% fewer tokens for the whole workflow, with $60.5$\% savings on tool schemas, $80.5$\% on schema discovery, and $61.4$\% on a wide result set, and we document the one stage where minimalism loses (small result sets, roughly $+55$\% framing tokens), because a comparison that reports only aggregate wins would misstate the design's behavior.
+  \item We release the \textbf{server, benchmark harness, figures, and reproduction instructions} so the measurements can be re-run against other databases, servers, and tokenizers.
+\end{enumerate}
+
+The remainder of this report is organized as follows: Section~\ref{sec:system-model} formalizes the cost model and the contract; Section~\ref{sec:related-work} reviews related work; Section~\ref{sec:architecture} describes the architecture; Section~\ref{sec:implementation} covers implementation and testing; Section~\ref{sec:evaluation} reports the benchmark; Sections~\ref{sec:discussion}--\ref{sec:conclusion} discuss implications, limitations, future work, and conclusions.

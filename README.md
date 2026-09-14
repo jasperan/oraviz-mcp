@@ -317,7 +317,9 @@ against the same 26ai Free database (`tiktoken` `cl100k_base`: tool schemas plus
 
 The 10-row sample step trades ~55% more framing tokens than raw CSV, and that overhead cannot grow with
 the result size. Rendering the aggregate as a chart costs 123 text tokens plus the PNG image. Full
-methodology, step-by-step numbers, and reproduction commands: [`benchmarks/`](benchmarks/).
+methodology, step-by-step numbers, and reproduction commands: [`benchmarks/`](benchmarks/). The full
+write-up is in [`paper/paper.pdf`](paper/paper.pdf), the results deck in [`slides/`](slides/), and a
+live showcase at [jasperan.github.io/oraviz-mcp](https://jasperan.github.io/oraviz-mcp).
 
 ## Credits
 

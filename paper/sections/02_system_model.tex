@@ -1,0 +1,72 @@
+\section{System Model and Context Contract}\label{sec:system-model}
+
+\subsection{Token cost model}
+
+Consider an agent session in which the client connects to one MCP server and answers a task with $k$ tool calls. We write the session context cost as
+\begin{equation}
+C \;=\; S(\mathcal{T}) \;+\; \sum_{i=1}^{k} R_i ,
+\label{eq:session}
+\end{equation}
+where $S(\mathcal{T})$ is the token cost of serializing the server's tool set $\mathcal{T}$ (name, description, and input schema per tool) and $R_i$ is the token cost of the $i$-th tool result. $S$ is paid once per session; each $R_i$ is paid per call and stays in the conversation until the client compacts it.
+
+For row-returning tools, the result cost is set by the rendering policy rather than by the database. Let a result set have $n$ rows and $m$ columns with formatted cell values $c_{j,k}$. A bounded server renders $\hat{n} = \min(n, P)$ rows with each cell truncated to at most $L$ characters:
+\begin{equation}
+R \;=\; \tau(M) \;+\; \sum_{j=1}^{\hat{n}} \sum_{k=1}^{m} \tau\!\left(\hat{c}_{j,k}\right) \;+\; \varepsilon ,
+\qquad \hat{c}_{j,k} = c_{j,k}[:L],
+\label{eq:result}
+\end{equation}
+where $\tau(\cdot)$ counts tokens, $M$ is a one-line metadata header reporting the true row count and whether truncation occurred, and $\varepsilon$ covers table framing. The property that matters is that $R$ is bounded by a function of $(P, m, L)$ alone:
+\begin{equation}
+R \;\le\; B(P, m, L) \;=\; \tau(M) \;+\; P \cdot m \cdot (L + \delta) \;+\; \varepsilon ,
+\label{eq:bound}
+\end{equation}
+independent of $n$. A server that returns every row instead has $R = \Theta(n \cdot m)$; its context cost grows without bound as results widen. Table~\ref{tab:contract} lists the contract parameters.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabularx}{\textwidth}{l l l L}
+\toprule
+Parameter & Symbol & Default & Effect \\
+\midrule
+Preview cap & $P$ & 25 & Rows rendered by default for a query. \\
+Hard row cap & -- & 500 & Upper bound for explicit \texttt{max\_rows} and for chart inputs. \\
+Cell limit & $L$ & 500 & Per-cell truncation; larger values end in \texttt{...}. \\
+Statement timeout & -- & 60\,s & A query is stopped rather than allowed to hold the call open. \\
+Metadata header & $M$ & -- & One line: row count, truncation flag, optional context note. \\
+\bottomrule
+\end{tabularx}
+\caption{The context contract. Every row-returning tool obeys the same parameters, and the test suite asserts the resulting bounds.}
+\label{tab:contract}
+\end{table}
+
+\subsection{Chart substitution}
+
+For comparison and trend questions the server can substitute a chart $G(D)$ for rows of data. The image is a different modality and is deliberately excluded from the text-token accounting in this report; the accompanying text summary costs
+\begin{equation}
+\tau(s) \;=\; \mathcal{O}(m + \kappa),
+\label{eq:chart}
+\end{equation}
+where $\kappa$ is a small constant of caption and preview text. The text-side cost of answering with a picture is therefore independent of $n$ as well, and Section~\ref{sec:evaluation} reports a measured example.
+
+\subsection{Bounded result pipeline}
+
+Algorithm~\ref{alg:pipeline} states the execution policy that implements the contract for a single row-returning call. Validation rejects anything that is not a single \texttt{SELECT} or \texttt{WITH} statement, the fetch is capped one row past the preview so that truncation can be reported honestly, and every cell goes through the same formatting and truncation path.
+
+\begin{algorithm}[t]
+\caption{Bounded result pipeline for one row-returning tool call.}
+\label{alg:pipeline}
+\SetKwInOut{Input}{input}
+\SetKwInOut{Output}{output}
+\Input{validated query $q$; preview cap $P$; cell limit $L$; timeout $\theta$}
+\Output{compact markdown result $r$ with truncation metadata}
+open thin-mode connection with call timeout $\theta$\;
+$cur \leftarrow$ \textsc{Execute}($q$)\;
+$cols \leftarrow cur.\text{description}$\;
+$rows \leftarrow cur.\textsc{FetchMany}(P+1)$ \tcp*{one extra row detects truncation}
+$t \leftarrow |rows| > P$\;
+$rows \leftarrow rows[:P]$\;
+$cells \leftarrow [\; \textsc{Format}(v)[:L] \;\text{ for } v \in rows \;]$\;
+$head \leftarrow \textsc{Metadata}(|rows|,\, t,\, cols)$\;
+\Return $r \leftarrow \textsc{Markdown}(head, cols, cells)$\;
+\end{algorithm}

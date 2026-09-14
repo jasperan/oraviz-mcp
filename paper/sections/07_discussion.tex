@@ -1,0 +1,25 @@
+\section{Discussion}\label{sec:discussion}
+
+The measurement in Section~\ref{sec:evaluation} supports a simple reading: for MCP servers, the two context channels are design surfaces, and treating them explicitly changes the economics of an agent session. Tool schemas are a fixed per-session cost that a smaller, single-purpose surface reduces by $60.5$\% in our comparison; tool results are a per-call cost that a result contract reduces by $53.7$\% across the workflow, with the largest effects exactly where an unscaled context would otherwise grow. Neither reduction requires restricting what the database can answer; both follow from how the answer is packaged and how much of it crosses the protocol boundary.
+
+\subsection{Design rules for efficient MCP servers}
+
+The specific numbers are Oracle-specific, but the rules that produced them are not. They can be stated independently of the artifact:
+
+\begin{enumerate}
+  \item \textbf{One tool, one question.} Narrow tools keep schemas short and selection unambiguous; capability breadth belongs in the database, not in the protocol surface.
+  \item \textbf{Declare budgets and enforce them.} Preview caps, cell limits, and hard caps turn result cost into a function of configuration rather than of data size.
+  \item \textbf{Report truncation honestly.} A capped result must say that it is capped, and how many rows exist, so the agent can ask for more instead of assuming it has everything.
+  \item \textbf{Summarize by value type.} Vectors, binary payloads, and large text have no useful cell representation; summarizing them preserves the table structure at constant cost.
+  \item \textbf{Profile before you plot.} Column statistics let an agent choose an aggregation and a chart without fetching rows, moving the expensive step into SQL where the database already operates.
+  \item \textbf{Substitute modality when the answer is visual.} A chart plus a short caption answers comparison questions at a text cost that does not scale with row count.
+  \item \textbf{Time-box execution.} A statement timeout keeps a pathological query from becoming a pathological tool call.
+\end{enumerate}
+
+\subsection{Tension and scope}
+
+The contract shifts work onto the agent: aggregation, chart choice, and column selection are now part of the agent's job, and the server's guidance is deliberately instructional (tool descriptions explain when to profile, aggregate, and plot). In our workflow the agent composed the aggregation without assistance, but an agent that cannot aggregate will pay for bounded previews with additional calls, which narrows the savings. The design therefore trades a small amount of agent capability for a bounded, predictable context footprint.
+
+The pattern also compounds when servers are stacked. A client that connects both the official server and OraViz pays both schema costs, $2{,}983$ tokens in our configuration, of which the minimal server contributes $28$\%. The savings reported here are per-server; in multi-server sessions, keeping each surface small is the only way the fixed costs stay manageable, which is an argument for specialized servers over a single maximal one.
+
+Finally, this report treats the official servers as complementary rather than superseded. SQLcl MCP and its siblings expose operations (DDL, transactions, administration) that OraViz intentionally refuses. The claim is narrower and, we believe, more useful: if an agent's question is ``what does this data look like'', answering it through a general-purpose operational interface is an order of magnitude more expensive in context than answering it through a purpose-built visual one.

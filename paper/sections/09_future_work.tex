@@ -1,0 +1,9 @@
+\section{Future Work}\label{sec:future-work}
+
+Several extensions follow directly from the limitations. The benchmark harness is server-agnostic by construction, so the most immediate step is breadth: ORDS-based endpoints, OCI Database Tools, and non-Oracle database servers would test whether the observed ratios are a property of minimal design or of this particular pair. Adding encodings and agent models would sharpen the tokenizer proxy, and instrumenting a live agent loop would add time-to-answer and tool-selection accuracy to the token accounting.
+
+A second direction is to connect context cost to task success. The interesting question is not whether bounded results are cheaper, which follows from Equation~\ref{eq:bound}, but when they are sufficient: for which question classes does a preview plus truncation markers preserve answer accuracy, and when does the agent need the full result? A controlled study of accuracy as a function of the preview cap would turn the contract's defaults from a reasonable choice into a calibrated one.
+
+A third direction is compression inside the contract. The cell limit is positional, not semantic; methods in the spirit of prompt compression could summarize cells or entire previews while preserving the invariant that result cost is independent of row count. Similarly, tool schemas themselves are compressible: shared parameter vocabularies and generated descriptions could shrink the fixed per-session cost further, particularly for clients that connect many servers at once.
+
+Finally, the operational posture invites hardening work: database-enforced read-only roles, authenticated network transports, and per-session scoping would make the same context-efficient surface safe to expose beyond a developer machine. None of these change the measurements reported here, but they determine how far the approach can travel.

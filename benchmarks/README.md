@@ -35,6 +35,9 @@ its `connect` tool only accepts saved connections, so connecting goes through
 
 ## Results (cl100k_base tokens)
 
+Negative savings mean the official server used fewer tokens for that step; they occur only on
+small result sets, where markdown framing is heavier than raw CSV.
+
 | Question | oraviz-mcp | sqlcl-mcp | Savings |
 |---|---:|---:|---:|
 | list objects | 69 | 354 | 80.5% |

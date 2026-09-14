@@ -270,6 +270,7 @@ def markdown_report(report: Dict[str, Any]) -> str:
         "",
         "Token counts use `tiktoken` (`cl100k_base`; `o200k_base` numbers are in the JSON).",
         "Lower is better; savings are relative to the official SQLcl MCP server.",
+        "Negative savings mean the official server used fewer tokens for that step.",
         "",
         "| Question | oraviz-mcp | sqlcl-mcp | Savings |",
         "|---|---:|---:|---:|",

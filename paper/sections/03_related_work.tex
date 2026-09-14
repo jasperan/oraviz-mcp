@@ -1,0 +1,16 @@
+\section{Related Work}\label{sec:related-work}
+
+\paragraph{Tool interfaces for language models.}
+A line of work equips models with external tools: Toolformer learns when to call APIs \cite{toolformer2023}, Gorilla studies large-scale API invocation \cite{gorilla2023}, ReAct interleaves reasoning and acting \cite{react2023}, and the Berkeley Function Calling Leaderboard evaluates function-calling accuracy across models \cite{bfcl2024}. This literature measures what models can do with tools; it largely holds the interface fixed. Our work studies the other side of that interface: the context economics of the server that defines the tools.
+
+\paragraph{The MCP ecosystem and official Oracle servers.}
+MCP standardizes how servers expose tools, resources, and prompts to clients \cite{anthropicmcp2024, mcpspec2025}. Oracle ships several general-purpose servers, including the SQLcl MCP server with \texttt{run-sql}, \texttt{connect}, and \texttt{schema-information} tools \cite{sqlclmcp2026}, ORDS-based MCP endpoints \cite{ordsmcp2026}, and the reference servers in \texttt{oracle/mcp} \cite{oraclemcp2026}. These servers prioritize capability breadth. To our knowledge they are not accompanied by public token-economics benchmarks, and our evaluation is the first head-to-head token comparison we are aware of against one of them on a shared database.
+
+\paragraph{Context utilization and compression.}
+Retrieval-augmented generation \cite{rag2020} and long-context studies such as ``Lost in the Middle'' \cite{lostinthemiddle2023} show that models attend unevenly to long inputs, and prompt-compression methods such as LLMLingua \cite{llmlingua2023} reduce tokens on the client side. These techniques operate on content that has already entered the pipeline. A server-side contract, as proposed here, prevents wasteful context from being produced at all; the two are complementary, and a client can compress compact results further.
+
+\paragraph{Language models and databases.}
+Text-to-SQL has a mature benchmark and method literature, from Spider \cite{spider2018} to surveys of the field \cite{text2sqlsurvey2022}. That work optimizes query correctness. The presentation of query results to an agent, which determines the context cost of a correct answer, has received much less attention; our contract treats presentation as a first-class design decision.
+
+\paragraph{Automated visualization.}
+Grammar-of-graphics systems such as Vega-Lite \cite{vegalite2017} and chart-understanding benchmarks such as ChartQA \cite{chartqa2022} study how to specify and read visualizations. We use a conventional plotting library \cite{hunter2007matplotlib} and focus instead on the decision to answer with a chart rather than with rows, and on the token budget of that choice.

@@ -1,0 +1,62 @@
+\section{Architecture}\label{sec:architecture}
+
+OraViz sits between an MCP client and an Oracle AI Database instance. Figure~\ref{fig:architecture} shows the request path: the client issues a tool call over stdio or HTTP, the server validates the request and converts it into a single bounded query, the query executes through thin-mode \texttt{python-oracledb} with a statement timeout, and the result passes through a renderer that produces either a compact markdown table or a chart image with a short text summary. Nothing in the path is allowed to return a result whose token cost grows with the size of the underlying data.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=4pt, minimum height=9mm},
+  arrow/.style={-{Stealth[length=2mm]}},
+  node distance=6mm and 10mm,
+]
+\node[box] (agent) {MCP client\\(agent)};
+\node[box, right=of agent] (tools) {OraViz\\{\scriptsize 7 bounded tools}};
+\node[box, right=of tools] (guard) {Validation\\{\scriptsize guard, identifiers, caps}};
+\node[box, right=of guard] (db) {Oracle AI DB\\{\scriptsize thin mode, timeout}};
+\draw[arrow] (agent) -- node[above, font=\scriptsize]{stdio / http} (tools);
+\draw[arrow] (tools) -- (guard);
+\draw[arrow] (guard) -- node[above, font=\scriptsize]{1 query} (db);
+\node[box, below=10mm of guard] (render) {Renderer: markdown table $\cdot$ profile $\cdot$ chart PNG};
+\draw[arrow] (guard.south) -- (render.north);
+\draw[arrow] (render.west) -| (agent.south);
+\end{tikzpicture}
+\caption{Request path. Every tool call leaves the server as exactly one validated query, and every result leaves the renderer under the context contract of Section~\ref{sec:system-model}.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Tool surface}
+
+Table~\ref{tab:tools} lists the seven tools. The surface is deliberately small: each tool answers one kind of question, so the schemas stay short and the agent's choice among them stays unambiguous. The visualization workflow is explicit rather than implicit: an agent profiles a table to learn column shapes, writes an aggregate query, and renders the result, which keeps large row sets out of the conversation while the agent decides what to draw.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabularx}{\textwidth}{l L l}
+\toprule
+Tool & Purpose & Return shape \\
+\midrule
+\texttt{execute\_query} & One bounded \texttt{SELECT}/\texttt{WITH} statement & markdown table + metadata \\
+\texttt{list\_tables} & Tables and views in the current schema & markdown table \\
+\texttt{get\_table\_schema} & Columns, types, nullability, primary keys & markdown table \\
+\texttt{sample\_table\_data} & First rows of a table & markdown table + note \\
+\texttt{get\_table\_details} & Tablespace and optimizer statistics & small dictionary \\
+\texttt{profile\_table} & Per-column counts, min/max, average, nulls & dictionary \\
+\texttt{create\_chart} & One bounded query rendered as a PNG & image + preview \\
+\bottomrule
+\end{tabularx}
+\caption{The seven tools. All row-returning tools obey the preview cap, the hard cap, and the cell limit; \texttt{profile\_table} exists so that chart decisions do not require fetching rows.}
+\label{tab:tools}
+\end{table}
+
+\subsection{Validation and execution}
+
+Requests are validated before a connection is opened. Queries must be a single \texttt{SELECT} or \texttt{WITH} statement with no statement separator, and identifiers such as table, schema, and column names must match a conservative pattern before they are quoted. Values never reach the database as interpolated text; they are always bound. Each call runs under a configurable statement timeout so a heavy query is stopped rather than allowed to hold the tool call open, and row and cell budgets from Table~\ref{tab:contract} are applied at fetch and render time rather than after materialization.
+
+The read-only property of the server is a validation guarantee rather than a database-enforced one: the guard is lexical, which is sufficient for the intended workflow but should be paired with a read-only database account where a hard boundary is required. This report states the limitation explicitly because the alternative, presenting a lexical guard as a security boundary, would overstate what the artifact provides.
+
+\subsection{Rendering and charts}
+
+Row-returning tools share one renderer. It emits a single metadata line (row count, truncation flag, optional note), a markdown header, and one compact line per row. Values pass through one formatting path: nulls render as \texttt{null}, midnight timestamps as dates, binary and vector values as summaries such as \texttt{<binary 1234 bytes>} and \texttt{<VECTOR(384)>}, and long text is truncated to the cell limit. Cell content is escaped so that pipes and newlines cannot break the table, including in column names.
+
+Charts use a fixed Oracle-red palette and support bar, line, area, scatter, pie, and histogram renderings. The chart tool returns the image together with a short text summary (row and column counts, the SQL, and a five-row preview) so that text-only clients still receive the essential content. The renderer is deliberately stateless: figures are created and destroyed per call, and no global plotting state is shared, which keeps concurrent calls on a worker pool safe.

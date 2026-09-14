@@ -1,9 +1,10 @@
 # Token benchmark: oraviz-mcp vs the official SQLcl MCP server
 
-Generated: 2026-09-14T12:15:25.004189+00:00
+Generated: 2026-09-14T12:35:14.811347+00:00
 
 Token counts use `tiktoken` (`cl100k_base`; `o200k_base` numbers are in the JSON).
 Lower is better; savings are relative to the official SQLcl MCP server.
+Negative savings mean the official server used fewer tokens for that step.
 
 | Question | oraviz-mcp | sqlcl-mcp | Savings |
 |---|---:|---:|---:|

@@ -1,0 +1,13 @@
+\section{Implementation}\label{sec:implementation}
+
+OraViz is implemented in Python 3.12 as a FastMCP server \cite{fastmcp2025} using \texttt{python-oracledb} in thin mode \cite{pythonoracledb}, which connects to Oracle Database without any Oracle client libraries, and Matplotlib for chart rendering \cite{hunter2007matplotlib}. The server runs over stdio, HTTP, SSE, or streamable HTTP, and writes structured JSON logs to stderr so that stdout remains a clean transport channel for stdio clients. Configuration is entirely environment-driven, including the contract parameters of Table~\ref{tab:contract}, wallet settings for Autonomous Database deployments, and the statement timeout.
+
+The codebase is intentionally small: approximately $630$ statements of source across three modules, one module for the MCP application, config, validation, and tools, one for pure chart rendering, and one entry point. Chart rendering avoids library-global state and uses figure objects directly so that concurrent tool calls cannot race on shared plotting state. Deployment artifacts are standard: a multi-stage, non-root container image published to a container registry, an MCP registry metadata file, and a CI workflow that runs the test suite, builds the distribution, and publishes the image.
+
+\subsection{Testing}
+
+The test suite has two layers. The hermetic layer runs a scripted fake cursor through every tool, which exercises multi-step flows such as view fallback in table details and metadata-then-aggregate profiling without a database. The live layer runs against an Oracle AI Database 26ai Free container and covers the query path, schema introspection, profiling, chart rendering, and a \texttt{VECTOR} column round trip. At the time of writing the suite reports $146$ passing unit tests and $9$ passing integration tests, with $97.9$\% line coverage and a CI gate at $90$\%. The context contract is asserted rather than documented only: dedicated tests fix the metadata header, truncation behavior, cell escaping, and value formatting, so a regression that violates the contract fails the build.
+
+\subsection{Agent integration}
+
+The server is a standard stdio or HTTP MCP server and therefore works with any compliant client. In addition to the benchmark harness of Section~\ref{sec:evaluation}, we validated the server inside a real command-line coding agent by registering it as an MCP server and asking the agent to list tables, inspect a schema, aggregate revenue by region, and render the result. All four tool calls succeeded, and the chart arrived at the client as PNG image content together with its text summary, which indicates that the visualization path works end to end through an agent loop rather than only through direct client calls.

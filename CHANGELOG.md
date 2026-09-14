@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   statement can no longer hold a tool call open indefinitely.
 - Non-positive values for the connect/max-rows/preview/cell env knobs now fall back to their defaults
   with a warning instead of flowing through as garbage.
+- Token benchmark against the official Oracle SQLcl MCP server (`benchmarks/run_benchmarks.py` plus
+  committed results): 53.7% fewer workflow tokens, 60.5% fewer on tool schemas, 80.5% on schema
+  discovery, 61.4% on a wide result set.
+- Report "Writing Efficient MCP Servers" in `paper/` (LaTeX sources, generated figures, and the
+  compiled `paper.pdf`) and a ten-slide results deck in `slides/`.
+- GitHub Pages showcase site in `docs/` (end-to-end query demo, benchmark summary, quick start) and
+  `AGENTS.md` describing the repository for coding agents.
 
 ### Changed
 

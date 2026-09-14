@@ -1,0 +1,68 @@
+\documentclass{article}
+
+\usepackage[final,main]{neurips_2025}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage[linesnumbered,ruled,vlined]{algorithm2e}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\lstdefinestyle{codestyle}{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false
+}
+
+\title{Writing Efficient MCP Servers}
+
+\author{%
+  \normalfont
+  Nacho Martinez \\[0.75em]
+  \textbf{github.com/jasperan}
+}
+
+\makeatletter
+\renewcommand{\@noticestring}{}
+\makeatother
+
+\begin{document}
+
+\maketitle
+
+\input{sections/00_abstract}
+\input{sections/01_introduction}
+\input{sections/02_system_model}
+\input{sections/03_related_work}
+\input{sections/04_architecture}
+\input{sections/05_implementation}
+\input{sections/06_evaluation}
+\input{sections/07_discussion}
+\input{sections/08_limitations}
+\input{sections/09_future_work}
+\input{sections/09_conclusion}
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\clearpage
+\appendix
+
+\input{sections/11_appendix_setup}
+
+\end{document}
