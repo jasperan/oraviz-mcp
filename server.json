@@ -1,0 +1,113 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/2025-10-17/server.json",
+  "name": "io.github.jasperan/oraviz-mcp",
+  "version": "0.1.0",
+  "description": "Minimal, visualization-first MCP server for Oracle AI Database: compact read-only queries, table profiling, and PNG chart rendering for AI assistants",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jasperan/oraviz-mcp.git"
+  },
+  "homepage": "https://github.com/jasperan/oraviz-mcp",
+  "license": "MIT",
+  "author": {
+    "name": "jasperan"
+  },
+  "runtime": {
+    "type": "docker",
+    "image": "ghcr.io/jasperan/oraviz-mcp:0.1.0"
+  },
+  "transport": {
+    "type": "stdio"
+  },
+  "config": {
+    "required": {
+      "ORACLE_USER": {
+        "type": "string",
+        "description": "Oracle database user (for the Free container, SYSTEM or an app user)"
+      },
+      "ORACLE_PASSWORD": {
+        "type": "string",
+        "description": "Password for ORACLE_USER"
+      }
+    },
+    "optional": {
+      "ORACLE_HOST": {
+        "type": "string",
+        "description": "Database hostname (default: localhost)"
+      },
+      "ORACLE_PORT": {
+        "type": "integer",
+        "description": "Listener port (default: 1521)"
+      },
+      "ORACLE_SERVICE": {
+        "type": "string",
+        "description": "Service name (default: FREEPDB1)"
+      },
+      "ORACLE_DSN": {
+        "type": "string",
+        "description": "Full EZConnect descriptor (e.g. localhost:1521/FREEPDB1); overrides host/port/service"
+      },
+      "ORACLE_MCP_MAX_ROWS": {
+        "type": "integer",
+        "description": "Hard cap on rows returned per query (default: 500)"
+      },
+      "ORACLE_MCP_PREVIEW_ROWS": {
+        "type": "integer",
+        "description": "Default preview size for execute_query (default: 25)"
+      },
+      "ORACLE_MCP_MAX_CELL_CHARS": {
+        "type": "integer",
+        "description": "Maximum characters per table cell before truncation (default: 500)"
+      },
+      "ORACLE_MCP_SERVER_TRANSPORT": {
+        "type": "string",
+        "description": "Transport mode: stdio (default), http, sse, or streamable-http"
+      },
+      "ORACLE_MCP_BIND_HOST": {
+        "type": "string",
+        "description": "Host to bind for network transports (default: 127.0.0.1)"
+      },
+      "ORACLE_MCP_BIND_PORT": {
+        "type": "integer",
+        "description": "Port to bind for network transports (default: 8080)"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "execute_query",
+      "description": "Executes a read-only SELECT/WITH query and returns a compact, preview-capped markdown table",
+      "category": "query"
+    },
+    {
+      "name": "list_tables",
+      "description": "Lists tables and views in the current or a given schema",
+      "category": "discovery"
+    },
+    {
+      "name": "get_table_schema",
+      "description": "Returns columns, types, nullability, and primary key membership for a table or view",
+      "category": "discovery"
+    },
+    {
+      "name": "sample_table_data",
+      "description": "Returns a small sample of rows from a table as a compact markdown table",
+      "category": "discovery"
+    },
+    {
+      "name": "get_table_details",
+      "description": "Returns table metadata and optimizer statistics, optionally an exact row count",
+      "category": "discovery"
+    },
+    {
+      "name": "profile_table",
+      "description": "Profiles columns (nulls, distinct counts, min/max/avg) to decide which chart fits the data",
+      "category": "analysis"
+    },
+    {
+      "name": "create_chart",
+      "description": "Runs a read-only query and renders the result as a PNG chart (bar, line, area, scatter, pie, histogram)",
+      "category": "visualization"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+# Full stack for local development: Oracle AI Database 26ai Free.
+#
+# The MCP server itself speaks stdio (or http/sse/streamable-http on request),
+# so it usually runs from the host or from an MCP client -- see the README.
+# This compose file brings up the database it points at.
+#
+# Usage:
+#   echo "ORACLE_PASSWORD=OraViz2026" > .env
+#   docker compose up -d
+#   # then: ORACLE_USER=system ORACLE_PASSWORD=OraViz2026 ORACLE_DSN=localhost:1530/FREEPDB1
+#
+# Note: the container password variable for the official Oracle image is ORACLE_PWD
+# (ORACLE_PASSWORD is the gvenzl/* image spelling). The MCP server reads ORACLE_PASSWORD.
+
+services:
+  oracle:
+    image: container-registry.oracle.com/database/free:latest
+    container_name: oraviz-oracle
+    ports:
+      - "1530:1521"
+    environment:
+      ORACLE_PWD: ${ORACLE_PASSWORD:?set ORACLE_PASSWORD in .env}
+    volumes:
+      - oraviz-oracle-data:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "/opt/oracle/checkDBStatus.sh"]
+      interval: 20s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+    restart: unless-stopped
+
+volumes:
+  oraviz-oracle-data:
