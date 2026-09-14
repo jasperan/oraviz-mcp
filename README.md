@@ -302,6 +302,23 @@ OraViz is the opposite bet: seven tools, read-only SQL, and a hard focus on turn
 flooding the model's context. If you want the database *operated*, use the official servers. If you want the database
 *seen*, use this one.
 
+## Benchmarks
+
+We measured the tokens an agent must process to answer the same questions through OraViz and through the
+official [SQLcl MCP server](https://docs.oracle.com/en/database/oracle/sql-developer-command-line/26.2/sqcug/using-oracle-sqlcl-mcp-server.html),
+against the same 26ai Free database (`tiktoken` `cl100k_base`: tool schemas plus every tool result):
+
+| Stage | OraViz | SQLcl MCP | Savings |
+|---|---:|---:|---:|
+| Tool schemas (read once per session) | 844 | 2,139 | **60.5%** |
+| Schema discovery | 69 | 354 | **80.5%** |
+| Full 96-row dump | 825 | 2,136 | **61.4%** |
+| Whole workflow (5 questions) | 2,319 | 5,006 | **53.7%** |
+
+The 10-row sample step trades ~55% more framing tokens than raw CSV, and that overhead cannot grow with
+the result size. Rendering the aggregate as a chart costs 123 text tokens plus the PNG image. Full
+methodology, step-by-step numbers, and reproduction commands: [`benchmarks/`](benchmarks/).
+
 ## Credits
 
 - [`pab1it0/adx-mcp-server`](https://github.com/pab1it0/adx-mcp-server) -- the project this mirrors, tool for tool, for Oracle
