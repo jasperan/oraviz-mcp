@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OraViz MCP — compact Oracle answers, charts included</title>
-  <meta name="description" content="A minimal, visualization-first MCP server for Oracle AI Database: bounded results, honest truncation, charts as image content, and 53.7% fewer workflow tokens than the official SQLcl MCP server.">
+  <meta name="description" content="A minimal, visualization-first MCP server for Oracle AI Database: bounded results, honest truncation, charts as image content, and 53.3% fewer workflow tokens than the official SQLcl MCP server.">
   <link rel="icon" type="image/svg+xml" href="assets/oraviz.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -53,11 +53,11 @@
         </div>
         <dl class="hero-stats reveal" style="--i:4">
           <div>
-            <dt>53.7%</dt>
+            <dt>53.3%</dt>
             <dd>fewer tokens for the five-question workflow, schemas included</dd>
           </div>
           <div>
-            <dt>844 <span class="unit">vs 2,139</span></dt>
+            <dt>862 <span class="unit">vs 2,139</span></dt>
             <dd>tokens of tool schemas, read once per session</dd>
           </div>
           <div>
@@ -147,13 +147,25 @@ ORDER BY total_revenue DESC;</code></pre>
              alt="The same revenue query rendered as a bar chart: East 573,932; North 502,897; South 432,190; West 360,759.">
       </div>
     </article>
+
+    <article class="step reveal">
+      <div class="step-meta">
+        <span class="step-num">04</span>
+        <h3>Project embeddings</h3>
+        <p>A <code>vector</code> chart sends the first VECTOR column through PCA and returns a 2D scatter, so 26ai embeddings can be explored without leaving SQL.</p>
+      </div>
+      <div class="step-body">
+        <img class="demo-chart" src="images/example-vector.png" width="1247" height="687"
+             alt="Six product embeddings projected to two PCA dimensions: footwear clusters left, outerwear at the bottom, camping at the right.">
+      </div>
+    </article>
   </section>
 
   <!-- ================= BENCHMARKS ================= -->
   <section class="section section-alt" id="benchmarks">
     <div class="section-head reveal">
       <p class="kicker">02 — The measurements</p>
-      <h2>53.7% fewer tokens than the official MCP server</h2>
+      <h2>53.3% fewer tokens than the official MCP server</h2>
       <p class="section-lede">
         Identical questions to OraViz and to the official Oracle SQLcl 26.1 MCP server
         (<code>sql -mcp</code>), same database, same data. Counted with <code>tiktoken</code>:
@@ -163,15 +175,15 @@ ORDER BY total_revenue DESC;</code></pre>
 
     <div class="bench-grid">
       <div class="bench-hero reveal">
-        <span class="bench-big">−53.7%</span>
-        <p>workflow tokens, schemas included — 2,319 vs 5,006. The savings concentrate where context
-          would otherwise grow: tool schemas (−60.5%), schema discovery (−80.5%), and an
+        <span class="bench-big">−53.3%</span>
+        <p>workflow tokens, schemas included — 2,337 vs 5,006. The savings concentrate where context
+          would otherwise grow: tool schemas (−59.7%), schema discovery (−80.5%), and an
           unaggregated 96-row dump (−61.4%).</p>
       </div>
       <ul class="bench-list reveal" style="--i:1">
         <li><span class="mono">−80.5%</span> listing schema objects: 69 vs 354 tokens</li>
         <li><span class="mono">−61.4%</span> full 96-row dump: 825 vs 2,136 tokens</li>
-        <li><span class="mono">−60.5%</span> tool schemas: 844 vs 2,139 tokens</li>
+        <li><span class="mono">−59.7%</span> tool schemas: 862 vs 2,139 tokens</li>
         <li><span class="mono">+55%</span> ten-row sample framing — bounded by design, not by data</li>
         <li><span class="mono">123 tok</span> chart path: aggregate rendered to PNG, no SQLcl equivalent</li>
       </ul>
@@ -185,7 +197,7 @@ ORDER BY total_revenue DESC;</code></pre>
       </figure>
       <figure class="reveal" style="--i:1">
         <img src="images/fig_benchmark_totals.png" width="1440" height="580"
-             alt="Grouped bar chart of the workflow budget: tool schemas 844 vs 2,139 tokens, tool results 2,319 vs 5,004, total 2,319 vs 5,006.">
+             alt="Grouped bar chart of the workflow budget: tool schemas 862 vs 2,139 tokens, tool results 2,337 vs 5,004, total 2,337 vs 5,006.">
         <figcaption>The workflow budget by stage. The full methodology, per-step numbers, and the harness live in <a href="https://github.com/jasperan/oraviz-mcp/tree/main/benchmarks" rel="noopener">benchmarks/</a>.</figcaption>
       </figure>
     </div>
@@ -204,7 +216,7 @@ ORDER BY total_revenue DESC;</code></pre>
     <ul class="tool-list">
       <li class="reveal"><code>execute_query</code><p>One bounded <code>SELECT</code>/<code>WITH</code> statement, returned as a compact markdown table with truncation metadata.</p><span class="tag">markdown</span></li>
       <li class="reveal"><code>profile_table</code><p>Per-column counts, distinct values, min/max and averages — enough to choose a chart without fetching rows.</p><span class="tag">dict</span></li>
-      <li class="reveal"><code>create_chart</code><p>Bar, line, area, scatter, pie, and histogram renderings returned as a PNG plus a short preview.</p><span class="tag tag-accent">image</span></li>
+      <li class="reveal"><code>create_chart</code><p>Bar, line, area, scatter, pie, histogram, and vector (PCA) renderings returned as a PNG plus a short preview.</p><span class="tag tag-accent">image</span></li>
       <li class="reveal"><code>list_tables</code><p>Tables and views in the current schema, capped with an explicit truncation marker.</p><span class="tag">markdown</span></li>
       <li class="reveal"><code>get_table_schema</code><p>Columns, types, nullability, and primary-key flags, escaped for safe markdown.</p><span class="tag">markdown</span></li>
       <li class="reveal"><code>sample_table_data</code><p>The first rows of a table with a sample note — useful before writing an aggregate.</p><span class="tag">markdown</span></li>

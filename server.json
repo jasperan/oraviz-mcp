@@ -106,7 +106,7 @@
     },
     {
       "name": "create_chart",
-      "description": "Runs a read-only query and renders the result as a PNG chart (bar, line, area, scatter, pie, histogram)",
+      "description": "Runs a read-only query and renders the result as a PNG chart (bar, line, area, scatter, pie, histogram, vector/PCA)",
       "category": "visualization"
     }
   ]

@@ -175,7 +175,7 @@ def slide_problem(prs):
         size=Pt(17),
     )
     stat_card(slide, Inches(8.3), Inches(1.8), Inches(4.3), "2,139", "tokens of tool schemas \u2014 official SQLcl MCP")
-    stat_card(slide, Inches(8.3), Inches(3.6), Inches(4.3), "844", "tokens of tool schemas \u2014 OraViz (60.5% fewer)")
+    stat_card(slide, Inches(8.3), Inches(3.6), Inches(4.3), "862", "tokens of tool schemas \u2014 OraViz (59.7% fewer)")
     textbox(
         slide,
         Inches(8.3),
@@ -359,9 +359,9 @@ def slide_steps(prs):
 def slide_totals(prs):
     slide = blank(prs)
     chrome(slide, 7, "Workflow totals")
-    stat_card(slide, Inches(0.7), Inches(1.5), Inches(3.8), "-60.5%", "tool schemas (844 vs 2,139)")
-    stat_card(slide, Inches(4.75), Inches(1.5), Inches(3.8), "-53.7%", "tool results (2,319 vs 5,004)")
-    stat_card(slide, Inches(8.8), Inches(1.5), Inches(3.8), "-53.7%", "total (2,319 vs 5,006)")
+    stat_card(slide, Inches(0.7), Inches(1.5), Inches(3.8), "-59.7%", "tool schemas (862 vs 2,139)")
+    stat_card(slide, Inches(4.75), Inches(1.5), Inches(3.8), "-53.3%", "tool results (2,337 vs 5,004)")
+    stat_card(slide, Inches(8.8), Inches(1.5), Inches(3.8), "-53.3%", "total (2,337 vs 5,006)")
     picture = slide.shapes.add_picture(str(FIGURES / "fig_benchmark_totals.png"), Inches(2.0), Inches(3.4), height=Inches(2.8))
     picture.left = int((SLIDE_W - picture.width) / 2)
     textbox(
@@ -370,7 +370,7 @@ def slide_totals(prs):
         Inches(6.65),
         Inches(11.9),
         Inches(0.4),
-        "o200k_base agrees within one point (53.6% total savings).",
+        "o200k_base agrees within one point (53.2% total savings).",
         size=Pt(12),
         color=GREY,
         align=PP_ALIGN.CENTER,

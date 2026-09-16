@@ -39,17 +39,20 @@ Two ideas shape everything:
 <td align="center"><strong>Area / Line</strong><br/><img src="docs/images/example-line.png" alt="Online revenue by month area chart" width="420"/></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><em>Both images were rendered by <code>create_chart</code> against the demo schema in <a href="examples/demo-sales.sql"><code>examples/demo-sales.sql</code></a>.</em></td>
+<td colspan="2" align="center"><strong>Vector (PCA)</strong><br/><img src="docs/images/example-vector.png" alt="Product embeddings projected to two dimensions with PCA" width="840"/></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><em>All images were rendered by <code>create_chart</code> against the demo schema in <a href="examples/demo-sales.sql"><code>examples/demo-sales.sql</code></a>.</em></td>
 </tr>
 </table>
 
 ## Why OraViz?
 
-- **Charts, not query dumps** -- `create_chart` renders bar, line, area, scatter, pie, and histogram charts with an Oracle-red palette and returns the PNG as MCP image content.
+- **Charts, not query dumps** -- `create_chart` renders bar, line, area, scatter, pie, histogram, and vector (PCA) charts with an Oracle-red palette and returns the PNG as MCP image content.
 - **Context-engineered results** -- bounded previews with explicit `truncated` metadata, one header per table instead of repeated JSON keys, CLOB/BLOB/VECTOR summarised, per-cell truncation.
 - **Profile before you plot** -- `profile_table` returns per-column nulls, distinct counts, min/max/avg so the model can pick the right chart without fetching rows.
 - **Read-only by design** -- validation admits a single `SELECT`/`WITH` statement (DDL, DML, and PL/SQL are rejected before connecting), every query is stopped by `ORACLE_CALL_TIMEOUT`, and row and cell caps apply everywhere. The guard is lexical; for a hard boundary, point OraViz at a read-only database account.
-- **Minimal surface** -- 7 tools, ~600 statements of source, stdio/http/sse/streamable-http transports, structured JSON logs on stderr (stdout stays clean for stdio).
+- **Minimal surface** -- 7 tools, ~700 statements of source, stdio/http/sse/streamable-http transports, structured JSON logs on stderr (stdout stays clean for stdio).
 - **Zero client install** -- python-oracledb thin mode; no Oracle Instant Client, no `ORACLE_HOME`, no tnsnames.
 
 ## The Context Contract
@@ -95,7 +98,7 @@ Weird values compress instead of exploding: `CLOB` renders as text (truncated), 
 
 ### How `create_chart` maps columns
 
-The first column is the x-axis (or the labels for pie charts); numeric columns after it become series. That makes the
+The first column is the x-axis (or the labels for pie and vector charts); numeric columns after it become series. That makes the
 chart contract simple and SQL-driven:
 
 ```sql
@@ -109,10 +112,20 @@ ORDER BY revenue DESC
 create_chart(sql=..., chart_type="bar", title="Revenue by region")
 ```
 
+```sql
+SELECT product_name, embedding FROM product_vectors
+```
+
+```python
+create_chart(sql=..., chart_type="vector", title="Product embeddings")
+```
+
 - `bar` / `line` / `area` -- label column plus one or more numeric series (up to 8 series; bar values are annotated when the chart is small)
 - `scatter` -- first two numeric columns
 - `pie` -- label column plus one numeric column; more than 12 slices are grouped into "Other"
 - `histogram` -- the first numeric column, auto-binned
+- `vector` -- the first VECTOR column is projected to two dimensions with PCA (dense and sparse vectors both work);
+  the first non-vector column labels the points, and each axis names the share of variance its component explains
 
 ## Quick Start
 
@@ -256,7 +269,7 @@ The network transports (`http`, `sse`, `streamable-http`) have no built-in authe
 oraviz-mcp
   src/oraviz_mcp/
     server.py          # FastMCP app, config, Oracle client, validation, the 7 tools
-    charts.py          # pure matplotlib rendering (bar/line/area/scatter/pie/histogram -> PNG bytes)
+    charts.py          # pure matplotlib rendering (bar/line/area/scatter/pie/histogram/vector -> PNG bytes)
     main.py            # entry point: env validation, transport selection
   tests/
     test_config.py     # config dataclasses + env parsing
@@ -310,10 +323,10 @@ against the same 26ai Free database (`tiktoken` `cl100k_base`: tool schemas plus
 
 | Stage | OraViz | SQLcl MCP | Savings |
 |---|---:|---:|---:|
-| Tool schemas (read once per session) | 844 | 2,139 | **60.5%** |
+| Tool schemas (read once per session) | 862 | 2,139 | **59.7%** |
 | Schema discovery | 69 | 354 | **80.5%** |
 | Full 96-row dump | 825 | 2,136 | **61.4%** |
-| Whole workflow (5 questions) | 2,319 | 5,006 | **53.7%** |
+| Whole workflow (5 questions) | 2,337 | 5,006 | **53.3%** |
 
 The 10-row sample step trades ~55% more framing tokens than raw CSV, and that overhead cannot grow with
 the result size. Rendering the aggregate as a chart costs 123 text tokens plus the PNG image. Full

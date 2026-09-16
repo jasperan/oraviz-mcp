@@ -3,6 +3,7 @@
 Tests for the Oracle Viz MCP server tools, with python-oracledb mocked out.
 """
 
+import array
 from unittest.mock import MagicMock
 
 import oracledb
@@ -483,6 +484,24 @@ class TestCreateChart:
         )
         _, summary = create_chart("SELECT a, b FROM t", "line")
         assert "only the first 2 rows were plotted" in summary
+
+    def test_vector_column_is_projected(self, monkeypatch):
+        configure(monkeypatch)
+        patch_connection(
+            monkeypatch,
+            {
+                "description": [("NAME",), ("EMBEDDING",)],
+                "rows": [
+                    ("alpha", array.array("f", [1.0, 0.0, 0.0])),
+                    ("beta", array.array("f", [0.0, 1.0, 0.0])),
+                    ("gamma", array.array("f", [0.0, 0.0, 1.0])),
+                ],
+            },
+        )
+        image, summary = create_chart("SELECT name, embedding FROM t", "vector")
+        assert image.data.startswith(PNG_MAGIC)
+        assert "Rendered a `vector` chart" in summary
+        assert "<VECTOR(3)>" in summary
 
     def test_invalid_chart_type(self, monkeypatch):
         configure(monkeypatch)

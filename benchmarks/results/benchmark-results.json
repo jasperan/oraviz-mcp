@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-14T12:35:14.811347+00:00",
+  "generated_at": "2026-09-16T14:15:14.032942+00:00",
   "encodings": [
     "cl100k_base",
     "o200k_base"
@@ -8,8 +8,8 @@
     {
       "server": "oraviz-mcp",
       "schema_tokens": {
-        "cl100k_base": 844,
-        "o200k_base": 841
+        "cl100k_base": 862,
+        "o200k_base": 860
       },
       "setup_tokens": {
         "cl100k_base": 0,
@@ -84,12 +84,12 @@
         }
       ],
       "answer_tokens": {
-        "cl100k_base": 2319,
-        "o200k_base": 2315
+        "cl100k_base": 2337,
+        "o200k_base": 2334
       },
       "grand_total": {
-        "cl100k_base": 2319,
-        "o200k_base": 2315
+        "cl100k_base": 2337,
+        "o200k_base": 2334
       }
     },
     {
@@ -183,19 +183,19 @@
   "comparison": {
     "cl100k_base": {
       "schema_tokens": {
-        "oraviz-mcp": 844,
+        "oraviz-mcp": 862,
         "sqlcl-mcp": 2139,
-        "savings_pct": 60.5
+        "savings_pct": 59.7
       },
       "answer_tokens": {
-        "oraviz-mcp": 2319,
+        "oraviz-mcp": 2337,
         "sqlcl-mcp": 5004,
-        "savings_pct": 53.7
+        "savings_pct": 53.3
       },
       "grand_total": {
-        "oraviz-mcp": 2319,
+        "oraviz-mcp": 2337,
         "sqlcl-mcp": 5006,
-        "savings_pct": 53.7
+        "savings_pct": 53.3
       },
       "step_savings_pct": {
         "list objects": 80.5,
@@ -207,19 +207,19 @@
     },
     "o200k_base": {
       "schema_tokens": {
-        "oraviz-mcp": 841,
+        "oraviz-mcp": 860,
         "sqlcl-mcp": 2142,
-        "savings_pct": 60.7
+        "savings_pct": 59.9
       },
       "answer_tokens": {
-        "oraviz-mcp": 2315,
+        "oraviz-mcp": 2334,
         "sqlcl-mcp": 4987,
-        "savings_pct": 53.6
+        "savings_pct": 53.2
       },
       "grand_total": {
-        "oraviz-mcp": 2315,
+        "oraviz-mcp": 2334,
         "sqlcl-mcp": 4989,
-        "savings_pct": 53.6
+        "savings_pct": 53.2
       },
       "step_savings_pct": {
         "list objects": 80.8,

@@ -4,18 +4,25 @@
 Pure functions: this module knows nothing about Oracle. It takes column names
 and rows and renders a PNG with matplotlib's Agg backend, so the server stays
 portable -- no display, no JavaScript, works inside a container.
+
+VECTOR columns are handled generically: dense values (``array.array`` or plain
+numeric sequences) and sparse values (objects with dimensions, indices and
+values) are converted to float lists, and the ``vector`` chart type projects
+them to two dimensions with PCA.
 """
 
 from __future__ import annotations
 
+import array
 import io
 import math
 from typing import Any, List, Optional, Sequence, Tuple
 
+import numpy
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
-CHART_TYPES = ("bar", "line", "area", "scatter", "pie", "histogram")
+CHART_TYPES = ("bar", "line", "area", "scatter", "pie", "histogram", "vector")
 
 # Oracle red first, followed by a muted, print-friendly palette.
 PALETTE = [
@@ -32,6 +39,7 @@ PALETTE = [
 MAX_SERIES = 8
 MAX_PIE_SLICES = 12
 MAX_ANNOTATED_BARS = 12
+MAX_ANNOTATED_POINTS = 12
 ROTATE_LABELS_AFTER = 6
 THIN_TICKS_AFTER = 40
 WATERMARK = "oraviz-mcp"
@@ -60,6 +68,37 @@ def _label(value: Any) -> str:
         return "(null)"
     text = str(value)
     return text if len(text) <= 24 else text[:21] + "..."
+
+
+def _vector_values(value: Any) -> Optional[List[float]]:
+    """Return a vector cell as a float list, or None if the cell is not a vector.
+
+    Dense VECTOR columns arrive as ``array.array``; sparse VECTOR columns arrive
+    as an object with dimensions, indices and values (driver versions name the
+    dimensions attribute differently). Plain numeric sequences are accepted too.
+    """
+    if isinstance(value, array.array):
+        return [float(item) for item in value]
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return None
+        try:
+            return [float(item) for item in value]
+        except (TypeError, ValueError):
+            return None
+    dimensions = getattr(value, "num_dimensions", None)
+    if dimensions is None:
+        dimensions = getattr(value, "num_elements", None)
+    values = getattr(value, "values", None)
+    if dimensions is None or values is None:
+        return None
+    dense = [0.0] * int(dimensions)
+    indices = getattr(value, "indices", range(len(values)))
+    for index, item in zip(indices, values):
+        position = int(index)
+        if 0 <= position < len(dense):
+            dense[position] = float(item)
+    return dense
 
 
 def _compact_number(value: float) -> str:
@@ -230,6 +269,76 @@ def _render_histogram(ax, columns, rows, x_label, y_label) -> None:
     _style_axes(ax, columns, x_label or columns[value_index], y_label or "count")
 
 
+def _project_vectors(
+    vectors: Sequence[Sequence[float]],
+) -> Tuple[List[float], List[float], List[float]]:
+    """Project vectors onto their first two principal components (PCA via SVD).
+
+    Returns the x scores, the y scores, and the explained-variance ratio of
+    each component.
+    """
+    if len(vectors) < 2:
+        raise ChartError("Vector charts need at least two vectors to project.")
+    dimension = len(vectors[0])
+    if dimension < 2:
+        raise ChartError("Vector charts need vectors with at least two dimensions.")
+    if any(len(vector) != dimension for vector in vectors):
+        raise ChartError("Vector charts need vectors of the same length.")
+    matrix = numpy.asarray(vectors, dtype=float)
+    if not numpy.isfinite(matrix).all():
+        raise ChartError("Vector charts need finite vector values.")
+    centered = matrix - matrix.mean(axis=0)
+    # Thin SVD: the principal-component scores are U * S.
+    left, singular, _ = numpy.linalg.svd(centered, full_matrices=False)
+    variance = singular**2
+    total = float(variance.sum())
+    if total <= 0:
+        raise ChartError("Vector charts need vectors that are not all identical.")
+    explained = (variance / total).tolist()
+    scores = left * singular
+    return scores[:, 0].tolist(), scores[:, 1].tolist(), [float(value) for value in explained[:2]]
+
+
+def _render_vector(ax, columns, rows, x_label, y_label) -> None:
+    vector_index = next(
+        (
+            index
+            for index in range(len(columns))
+            if any(_vector_values(row[index]) is not None for row in rows)
+        ),
+        None,
+    )
+    if vector_index is None:
+        raise ChartError("Vector charts need a VECTOR column (select one from the database).")
+    label_index = next((index for index in range(len(columns)) if index != vector_index), None)
+    vectors: List[List[float]] = []
+    labels: List[str] = []
+    for row in rows:
+        vector = _vector_values(row[vector_index])
+        if vector is None:
+            continue
+        vectors.append(vector)
+        labels.append(_label(row[label_index]) if label_index is not None else "")
+    xs, ys, explained = _project_vectors(vectors)
+    ax.scatter(xs, ys, color=PALETTE[0], s=28, alpha=0.75, edgecolors="white", linewidths=0.5)
+    if len(xs) <= MAX_ANNOTATED_POINTS and any(labels):
+        for x, y, label in zip(xs, ys, labels):
+            ax.annotate(
+                label,
+                (x, y),
+                xytext=(4, 4),
+                textcoords="offset points",
+                fontsize=7,
+                color="#4A4A4A",
+            )
+    _style_axes(
+        ax,
+        columns,
+        x_label or f"PC1 ({explained[0] * 100:.1f}% variance)",
+        y_label or f"PC2 ({explained[1] * 100:.1f}% variance)",
+    )
+
+
 def render_chart(
     columns: Sequence[str],
     rows: Sequence[Sequence[Any]],
@@ -262,6 +371,8 @@ def render_chart(
             _render_scatter(ax, columns, rows, x_label, y_label)
         elif chart_type == "pie":
             _render_pie(ax, columns, rows, x_label, y_label)
+        elif chart_type == "vector":
+            _render_vector(ax, columns, rows, x_label, y_label)
         else:
             _render_histogram(ax, columns, rows, x_label, y_label)
 

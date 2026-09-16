@@ -48,20 +48,20 @@ small result sets, where markdown framing is heavier than raw CSV.
 
 | Aggregate | oraviz-mcp | sqlcl-mcp | Savings |
 |---|---:|---:|---:|
-| Tool schemas (read once per session) | 844 | 2139 | 60.5% |
-| Tool results to answer the questions | 2319 | 5004 | 53.7% |
-| Total | 2319 | 5006 | 53.7% |
+| Tool schemas (read once per session) | 862 | 2139 | 59.7% |
+| Tool results to answer the questions | 2337 | 5004 | 53.3% |
+| Total | 2337 | 5006 | 53.3% |
 | sqlcl-only setup (connect step) | 0 | 2 | 100.0% |
 
 Capability add-on: rendering the aggregate as a bar chart costs 123 text
 tokens plus the PNG image. SQLcl MCP has no chart tool.
 
-With `o200k_base` the numbers move by less than one point: 2315 vs 4989
-tokens, 53.6% total savings.
+With `o200k_base` the numbers move by less than one point: 2334 vs 4989
+tokens, 53.2% total savings.
 
 ## Interpretation
 
-- **Tool schemas: 60.5% cheaper.** Seven small, single-purpose tools beat seven
+- **Tool schemas: 59.7% cheaper.** Seven small, single-purpose tools beat seven
   general-purpose tool definitions with long descriptions and `model` /
   `executionType` parameters. Every agent session pays this cost before any
   work starts.
@@ -76,7 +76,7 @@ tokens, 53.6% total savings.
   padding) is heavier than SQLcl's CSV for tiny payloads like a 10-row sample.
   That overhead is bounded by design: it cannot grow with the result size,
   while the unprotected dump cost grows with every row.
-- **Net: 53.7% fewer tokens for the whole workflow** -- and the workflow parts
+- **Net: 53.3% fewer tokens for the whole workflow** -- and the workflow parts
   that blow up most (schemas, discovery, unfiltered dumps) are exactly where
   the savings are largest.
 

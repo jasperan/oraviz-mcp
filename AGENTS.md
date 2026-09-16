@@ -19,7 +19,7 @@ Measurements: `benchmarks/`. Results deck: `slides/`. Showcase site: `docs/`
 
 ```
 src/oraviz_mcp/server.py   FastMCP app, config, Oracle client, validation, the 7 tools
-src/oraviz_mcp/charts.py   pure chart rendering (bar/line/area/scatter/pie/histogram -> PNG)
+src/oraviz_mcp/charts.py   pure chart rendering (bar/line/area/scatter/pie/histogram/vector -> PNG)
 src/oraviz_mcp/main.py     entry point: env validation, transport selection
 tests/                     hermetic unit tests (fake cursor) + tests/integration/ (live Oracle)
 benchmarks/                token benchmark harness + results JSON/MD

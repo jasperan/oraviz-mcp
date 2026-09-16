@@ -128,7 +128,8 @@ def test_create_chart_renders_png(db):
     assert "Rendered a `bar` chart" in summary
 
 
-def test_vector_column_is_summarised(configured, dsn, credentials):
+@pytest.fixture()
+def vector_db(configured, dsn, credentials):
     user, password = credentials
     connection = oracledb.connect(user=user, password=password, dsn=dsn)
     try:
@@ -141,15 +142,18 @@ def test_vector_column_is_summarised(configured, dsn, credentials):
                 cursor.execute(
                     f"CREATE TABLE {VECTOR_TABLE} (label VARCHAR2(20), embedding VECTOR(4, FLOAT32))"
                 )
-                cursor.execute(
-                    f"INSERT INTO {VECTOR_TABLE} VALUES ('v1', TO_VECTOR('[1.0, 2.0, 3.0, 4.0]'))"
+                cursor.executemany(
+                    f"INSERT INTO {VECTOR_TABLE} VALUES (:1, TO_VECTOR(:2))",
+                    [
+                        ("v1", "[1.0, 2.0, 3.0, 4.0]"),
+                        ("v2", "[4.0, 3.0, 2.0, 1.0]"),
+                        ("v3", "[1.5, 1.5, 3.5, 3.5]"),
+                    ],
                 )
                 connection.commit()
             except oracledb.DatabaseError as error:
                 pytest.skip(f"VECTOR not supported by this database: {error}")
-
-        text = server.execute_query(f"SELECT label, embedding FROM {VECTOR_TABLE}")
-        assert "<VECTOR(4)>" in text
+        yield VECTOR_TABLE
     finally:
         try:
             with connection.cursor() as cursor:
@@ -157,3 +161,18 @@ def test_vector_column_is_summarised(configured, dsn, credentials):
         except oracledb.DatabaseError:
             pass
         connection.close()
+
+
+def test_vector_column_is_summarised(vector_db):
+    text = server.execute_query(f"SELECT label, embedding FROM {vector_db} ORDER BY label")
+    assert "<VECTOR(4)>" in text
+
+
+def test_create_chart_projects_vectors(vector_db):
+    image, summary = server.create_chart(
+        f"SELECT label, embedding FROM {vector_db} ORDER BY label",
+        "vector",
+        title="Embeddings",
+    )
+    assert image.data.startswith(b"\x89PNG")
+    assert "Rendered a `vector` chart" in summary

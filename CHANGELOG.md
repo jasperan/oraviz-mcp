@@ -30,12 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Non-positive values for the connect/max-rows/preview/cell env knobs now fall back to their defaults
   with a warning instead of flowing through as garbage.
 - Token benchmark against the official Oracle SQLcl MCP server (`benchmarks/run_benchmarks.py` plus
-  committed results): 53.7% fewer workflow tokens, 60.5% fewer on tool schemas, 80.5% on schema
+  committed results): 53.3% fewer workflow tokens, 59.7% fewer on tool schemas, 80.5% on schema
   discovery, 61.4% on a wide result set.
 - Report "Writing Efficient MCP Servers" in `paper/` (LaTeX sources, generated figures, and the
   compiled `paper.pdf`) and a ten-slide results deck in `slides/`.
 - GitHub Pages showcase site in `docs/` (end-to-end query demo, benchmark summary, quick start) and
   `AGENTS.md` describing the repository for coding agents.
+- `create_chart` gained a `vector` chart type: the first VECTOR column is projected to two dimensions
+  with PCA (dense and sparse vectors, any dimension) and rendered as a labeled scatter, so 26ai embedding
+  columns can be explored without leaving SQL. Chart rendering now imports `numpy` directly (previously
+  only a matplotlib dependency) for the projection.
 
 ### Changed
 

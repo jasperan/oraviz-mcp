@@ -6,7 +6,7 @@ The position taken in this report is that MCP server design is, in large part, c
 
 \subsection{Motivation}
 
-\textbf{Schema bloat is paid up front.} General-purpose servers describe rich tools with long parameter surfaces, and the agent pays for that documentation before any work begins, on every session, whether or not the tools are used. The SQLcl MCP server, for example, exposes seven tools whose combined schemas cost $2{,}139$ tokens in our measurement; OraViz's schemas cost $844$.
+\textbf{Schema bloat is paid up front.} General-purpose servers describe rich tools with long parameter surfaces, and the agent pays for that documentation before any work begins, on every session, whether or not the tools are used. The SQLcl MCP server, for example, exposes seven tools whose combined schemas cost $2{,}139$ tokens in our measurement; OraViz's schemas cost $862$.
 
 \textbf{Unbounded results are the norm.} A faithful database tool returns what the query selects. A single exploratory \texttt{SELECT *} over a moderate table can dominate the context window, even though the agent's question likely concerns the shape of the data rather than every row in it.
 
@@ -20,7 +20,7 @@ The position taken in this report is that MCP server design is, in large part, c
   \item We present \textbf{OraViz}, a minimal, visualization-first MCP server for Oracle AI Database with seven tools: bounded query execution, object listing, schema and detail introspection, sampling, profiling, and chart rendering.
   \item We formalize a \textbf{context contract} for tool results in Section~\ref{sec:system-model}: preview caps with explicit truncation metadata, per-cell truncation, value summarization, and profile-first chart selection, yielding token bounds that are independent of result-set size.
   \item We build an \textbf{open benchmark harness} that poses identical questions to OraViz and to the official Oracle SQLcl MCP server against the same database and counts the tokens an agent must process (tool schemas plus tool results) using \texttt{tiktoken}.
-  \item We report the resulting \textbf{token economics} in Section~\ref{sec:evaluation}: $53.7$\% fewer tokens for the whole workflow, with $60.5$\% savings on tool schemas, $80.5$\% on schema discovery, and $61.4$\% on a wide result set, and we document the one stage where minimalism loses (small result sets, roughly $+55$\% framing tokens), because a comparison that reports only aggregate wins would misstate the design's behavior.
+  \item We report the resulting \textbf{token economics} in Section~\ref{sec:evaluation}: $53.3$\% fewer tokens for the whole workflow, with $59.7$\% savings on tool schemas, $80.5$\% on schema discovery, and $61.4$\% on a wide result set, and we document the one stage where minimalism loses (small result sets, roughly $+55$\% framing tokens), because a comparison that reports only aggregate wins would misstate the design's behavior.
   \item We release the \textbf{server, benchmark harness, figures, and reproduction instructions} so the measurements can be re-run against other databases, servers, and tokenizers.
 \end{enumerate}
 

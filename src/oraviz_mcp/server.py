@@ -829,7 +829,8 @@ def profile_table(
     description=(
         "Runs a read-only SQL query and renders the result as a chart image (PNG). "
         f"chart_type is one of: {', '.join(CHART_TYPES)}. The first column is the x-axis or "
-        "labels; numeric columns after it become series. Returns the image plus a data preview."
+        "labels; numeric columns after it become series. For 'vector', the first VECTOR "
+        "column is projected to two dimensions (PCA). Returns the image plus a data preview."
     )
 )
 def create_chart(

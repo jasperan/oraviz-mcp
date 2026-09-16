@@ -48,7 +48,7 @@ raw 96-row dump & 825 & 2{,}136 & 61.4\% \\
   \label{fig:benchmark-steps}
 \end{figure}
 
-Table~\ref{tab:totals} aggregates the workflow. Tool schemas cost $60.5$\% fewer tokens for OraViz, tool results cost $53.7$\% fewer, and the workflow total is $53.7$\% lower, $2{,}319$ tokens against $5{,}006$. Figure~\ref{fig:benchmark-totals} visualizes the budget by stage, and the SQLcl-only connect step adds two tokens that the total accounts for. Under \texttt{o200k\_base} the numbers move by less than one point ($53.6$\% total savings), so the aggregate result is not an artifact of one tokenizer vocabulary.
+Table~\ref{tab:totals} aggregates the workflow. Tool schemas cost $59.7$\% fewer tokens for OraViz, tool results cost $53.3$\% fewer, and the workflow total is $53.3$\% lower, $2{,}337$ tokens against $5{,}006$. Figure~\ref{fig:benchmark-totals} visualizes the budget by stage, and the SQLcl-only connect step adds two tokens that the total accounts for. Under \texttt{o200k\_base} the numbers move by less than one point ($53.2$\% total savings), so the aggregate result is not an artifact of one tokenizer vocabulary.
 
 \begin{table}[t]
 \centering
@@ -57,9 +57,9 @@ Table~\ref{tab:totals} aggregates the workflow. Tool schemas cost $60.5$\% fewer
 \toprule
 Stage & OraViz tokens & SQLcl tokens & Savings \\
 \midrule
-Tool schemas (once per session) & 844 & 2{,}139 & 60.5\% \\
-Tool results (five questions) & 2{,}319 & 5{,}004 & 53.7\% \\
-Workflow total & 2{,}319 & 5{,}006 & 53.7\% \\
+Tool schemas (once per session) & 862 & 2{,}139 & 59.7\% \\
+Tool results (five questions) & 2{,}337 & 5{,}004 & 53.3\% \\
+Workflow total & 2{,}337 & 5{,}006 & 53.3\% \\
 \bottomrule
 \end{tabular}
 \caption{Workflow token budget (\texttt{cl100k\_base}). The schema row is a fixed per-session cost; the result rows reflect the contract's effect on every call.}
@@ -83,4 +83,4 @@ Three observations follow from the tables. First, the largest savings come from 
 
 Second, the contract shifts cost from the data to the budget: the raw $96$-row dump costs $61.4$\% fewer tokens because the preview cap renders $25$ rows with an explicit truncation marker, and the cost of that result is the same whether the table has $96$, $96{,}000$, or $96$ million rows. The official server's cost grows with the table, so the measured gap widens with data size.
 
-Third, the losses are real and bounded. Markdown framing (header, divider, padding) costs roughly $55$\% more than CSV on tiny payloads such as a ten-row sample, but that overhead is a function of the column count and the caps, not of the row count, so it cannot grow with the data. The aggregate result is $53.7$\% fewer tokens, with the residual risk of a small, fixed premium on very small answers.
+Third, the losses are real and bounded. Markdown framing (header, divider, padding) costs roughly $55$\% more than CSV on tiny payloads such as a ten-row sample, but that overhead is a function of the column count and the caps, not of the row count, so it cannot grow with the data. The aggregate result is $53.3$\% fewer tokens, with the residual risk of a small, fixed premium on very small answers.
