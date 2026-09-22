@@ -18,12 +18,22 @@ This document describes how the Oracle Viz MCP server is tested.
 - `tests/test_charts.py` - every chart type plus its validation errors (Agg backend, headless)
 - `tests/test_server_tools.py` - all seven MCP tools against a scripted fake cursor
 - `tests/test_main.py` - environment validation and transport selection
+- `tests/test_transport_security.py` - fail-closed network configuration and JWT verification
+- `tests/test_query_security.py` - conservative SQL admission, bounded outputs,
+  unread LOBs, strict wire arguments, and sanitized database failures
+- `tests/test_tool_policy.py` - tool allowlisting, strict calls, admission, and sanitized audit records
+- `tests/test_devcontainer.py` - installer command/line/interpolation injection, private files,
+  existing-file preservation, and fatal ownership failures (no root, Docker, or network needed)
 
 ### Integration tests (live Oracle)
 
 - `tests/integration/test_oracle_integration.py` - creates a scratch table, then exercises
   `execute_query`, `list_tables`, `get_table_schema`, `sample_table_data`, `get_table_details`,
   `profile_table`, `create_chart`, the write guard, and a `VECTOR(4, FLOAT32)` round trip.
+- `tests/integration/test_security_boundary.py` - provisions uniquely named synthetic
+  owner/reader accounts in an explicitly selected local container; verifies that
+  Oracle itself denies writes, locks, ungranted reads, and table creation even
+  when connector SQL validation is bypassed. Removes only its generated accounts.
 
 ## Running the Suite
 
@@ -36,17 +46,56 @@ uv run pytest
 uv run pytest tests/test_server_tools.py -v
 uv run pytest tests/test_charts.py::TestRenderChart::test_all_types_render_png
 
-# Live integration against a local 26ai Free container
-docker run -d --name oraviz-oracle -p 1530:1521 -e ORACLE_PWD=OraViz2026 \
-  container-registry.oracle.com/database/free:latest
+# Focused security/installer checks (coverage gate belongs to the full suite)
+uv run pytest tests/test_transport_security.py tests/test_tool_policy.py tests/test_devcontainer.py --no-cov
+bash -n devcontainer-feature/oraviz-mcp/install.sh
+
+# Live integration: provision the disposable local database using README Quick Start.
+# The fixture creates and drops scratch tables, so use the setup/test owner, not
+# the MCP reader account. These test-only write grants are not deployment guidance.
 export ORAVIZ_TEST_DSN=localhost:1530/FREEPDB1
 export ORAVIZ_TEST_USER=oraviz
-export ORAVIZ_TEST_PASSWORD=OraViz2026
+read -rsp 'Disposable test owner password: ' ORAVIZ_TEST_PASSWORD
+export ORAVIZ_TEST_PASSWORD
 uv run pytest tests/integration -v --no-cov
+unset ORAVIZ_TEST_PASSWORD
+
+# Optional permission-boundary tests: this must be a disposable local Oracle
+# container with FREEPDB1. Provisioning uses its local OS-authenticated SYSDBA.
+# Never select a production container. No privileged MCP credentials are needed.
+export ORAVIZ_SECURITY_CONTAINER=oraviz-oracle
+uv run pytest tests/integration/test_security_boundary.py -v --no-cov
+unset ORAVIZ_SECURITY_CONTAINER
 ```
 
 Coverage is configured in `pyproject.toml` (`fail_under = 90`); the unit suite is what owns that gate.
 Run integration-only sessions with `--no-cov` so the partial run does not trip it.
+
+## Security validation before deployment
+
+Hermetic tests verify application behavior with fake database connections and synthetic
+tokens. They do not prove database grants, TLS, network isolation, IdP policy, or recovery.
+In an isolated environment, verify that:
+
+- The dedicated reader can query the approved demo objects but cannot modify them, lock them,
+  query an ungranted object, or execute an unapproved package. Inspect direct, inherited, and
+  `PUBLIC` privileges; an account name is not proof of least privilege.
+- Every HTTP/SSE entry path rejects missing/invalid/expired/wrong-audience tokens, missing/empty signed
+  subjects, and missing scopes,
+  including through the actual gateway. Check OAuth discovery against the configured public URL.
+- Disabled tools disappear from discovery and direct invocation is denied. Oversized inputs,
+  output limits, and excess concurrent calls fail safely; ordinary chart and metadata calls still work.
+- Secured collectors receive request IDs and outcomes without SQL, tokens, DSNs, or raw errors.
+  Verify Oracle session correlation and separately configured Unified Auditing.
+- Gateway rate/body/time limits, private ingress, restricted egress, and process/database resource
+  budgets work under load. Multi-round-trip and chart work can outlast `ORACLE_CALL_TIMEOUT`.
+- The host enforces approval for sensitive reads/exports, isolates user state, and treats prompt-like
+  database content as data. Exercise credential/scope revocation, a version rollback, and restoration
+  from backups; record the tested version and evidence without secrets.
+
+The deployment control inventory and limitations are in [SECURITY.md](../SECURITY.md).
+Historical benchmark/paper results are not current security test evidence. Do not overwrite
+their measurements when running regression checks.
 
 ## Mocking Approach
 

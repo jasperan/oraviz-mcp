@@ -137,23 +137,23 @@ class TestFormatValue:
     def test_lob_like(self):
         class Lob:
             def read(self):
-                return "some text"
+                pytest.fail("LOB contents must never be read")
 
         class BinaryLob:
             def read(self):
-                return b"12345"
+                pytest.fail("Binary LOB contents must never be read")
 
-        assert format_value(Lob()) == "some text"
-        assert format_value(BinaryLob()) == "<binary 5 bytes>"
+        assert format_value(Lob()) == "<LOB>"
+        assert format_value(BinaryLob()) == "<LOB>"
 
-    def test_long_lob_text_is_truncated(self, monkeypatch):
+    def test_lob_is_summarized_even_with_a_small_cell_budget(self, monkeypatch):
         monkeypatch.setattr(config, "max_cell_chars", 10)
 
         class Lob:
             def read(self):
-                return "0123456789abcdef"
+                pytest.fail("LOB contents must never be read")
 
-        assert format_value(Lob()) == "0123456789..."
+        assert format_value(Lob()) == "<LOB>"
 
     def test_long_strings_are_truncated(self, monkeypatch):
         monkeypatch.setattr(config, "max_cell_chars", 10)

@@ -41,11 +41,14 @@
         <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span> MCP server for Oracle AI Database 26ai</p>
         <h1 class="reveal" style="--i:1">Ask your Oracle data.<br>Get a compact table, a chart, <em>and a token bill you can plan for.</em></h1>
         <p class="lede reveal" style="--i:2">
-          OraViz is a minimal, visualization-first MCP server: seven tools, read-only SQL, and a
+          OraViz is a minimal, visualization-first MCP server: seven read-oriented tools and a
           context contract on every result — preview caps with honest truncation markers, cells
           bounded at 500 characters, and charts rendered as MCP image content. Benchmarked against
-          the official SQLcl MCP server on the same Oracle 26ai Free container.
+          the official SQLcl MCP server on the same Oracle 26ai Free container before security hardening.
         </p>
+        <p class="start-note">Measurements and PDFs are historical snapshots. Current deployment boundaries,
+          authentication requirements, and limits are documented in
+          <a href="https://github.com/jasperan/oraviz-mcp/blob/main/SECURITY.md">SECURITY.md</a>.</p>
         <div class="cta-row reveal" style="--i:3">
           <a class="btn primary" href="#query">See the query, end to end</a>
           <a class="btn ghost" href="paper/paper.pdf">Read the paper (PDF)</a>
@@ -108,11 +111,11 @@
       <div class="step-meta">
         <span class="step-num">01</span>
         <h3>Ask in SQL</h3>
-        <p>The agent composes one read-only statement. Validation rejects anything that is not a single <code>SELECT</code> or <code>WITH</code>, then the query runs inside a 60-second statement timeout.</p>
+        <p>The agent composes one <code>SELECT</code>/<code>WITH</code>. A conservative allowlist rejects unreviewed function calls with parentheses, but bare parameterless routines and routines inside views/synonyms can evade it. Use a dedicated account with object-level <code>READ</code> grants and review inherited/<code>PUBLIC</code> execution privileges. The default timeout is 60 seconds per database round trip, not per statement or tool call.</p>
       </div>
       <div class="step-body">
         <pre class="code code-dark"><code>SELECT region, SUM(revenue) AS total_revenue
-FROM sales_demo
+FROM oraviz.sales_demo
 GROUP BY region
 ORDER BY total_revenue DESC;</code></pre>
       </div>
@@ -171,6 +174,8 @@ ORDER BY total_revenue DESC;</code></pre>
         (<code>sql -mcp</code>), same database, same data. Counted with <code>tiktoken</code>:
         tool schemas read once per session, plus every tool result needed to answer.
       </p>
+      <p class="start-note">Historical results, unchanged since the original experiment. Current schemas,
+        limits, and LOB behavior differ; these values have not been recomputed for the hardened server.</p>
     </div>
 
     <div class="bench-grid">
@@ -240,8 +245,11 @@ ORDER BY total_revenue DESC;</code></pre>
           <h3>Run the server</h3>
           <button class="copy" type="button" data-copy="run">Copy</button>
         </div>
-        <pre class="code code-dark" id="run"><code>uvx --from git+https://github.com/jasperan/oraviz-mcp oraviz-mcp</code></pre>
-        <p class="start-note">Credentials come from <code>ORACLE_USER</code>, <code>ORACLE_PASSWORD</code>, and <code>ORACLE_DSN</code> (or host/port/service).</p>
+        <pre class="code code-dark" id="run"><code>uvx --from git+https://github.com/jasperan/oraviz-mcp@REVIEWED_COMMIT_SHA oraviz-mcp</code></pre>
+        <p class="start-note">Replace the commit placeholder with a reviewed revision. Use a dedicated reader
+          account; inject <code>ORACLE_PASSWORD</code> into the MCP host's protected runtime environment.
+          Stdio uses local OS trust. All HTTP/SSE entry paths require configured JWT authentication,
+          including loopback; deployments also need TLS and private networking.</p>
       </div>
       <div class="start-block reveal" style="--i:1">
         <div class="start-head">
@@ -252,11 +260,10 @@ ORDER BY total_revenue DESC;</code></pre>
   "mcpServers": {
     "oraviz": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/jasperan/oraviz-mcp", "oraviz-mcp"],
+      "args": ["--from", "git+https://github.com/jasperan/oraviz-mcp@REVIEWED_COMMIT_SHA", "oraviz-mcp"],
       "env": {
-        "ORACLE_USER": "oraviz",
-        "ORACLE_PASSWORD": "your_password",
-        "ORACLE_DSN": "localhost:1521/FREEPDB1"
+        "ORACLE_USER": "oraviz_reader",
+        "ORACLE_DSN": "localhost:1530/FREEPDB1"
       }
     }
   }
@@ -266,7 +273,9 @@ ORDER BY total_revenue DESC;</code></pre>
     <p class="start-more reveal">
       Docker image, demo schema, and the full environment reference live in the
       <a href="https://github.com/jasperan/oraviz-mcp#quick-start" rel="noopener">README</a>.
-      The paper is <a href="paper/paper.pdf">here (PDF)</a>, and the deck summarizing the results is in
+      Current security controls and operator responsibilities are in
+      <a href="https://github.com/jasperan/oraviz-mcp/blob/main/SECURITY.md">SECURITY.md</a>.
+      The historical paper is <a href="paper/paper.pdf">here (PDF)</a>, and the deck summarizing its results is in
       <a href="https://github.com/jasperan/oraviz-mcp/tree/main/slides" rel="noopener">slides/</a>.
     </p>
   </section>

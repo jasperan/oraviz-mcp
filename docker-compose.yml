@@ -5,9 +5,11 @@
 # This compose file brings up the database it points at.
 #
 # Usage:
-#   echo "ORACLE_PASSWORD=OraViz2026" > .env
+#   read -rsp 'Disposable database admin password: ' ORAVIZ_DB_ADMIN_PASSWORD
+#   export ORAVIZ_DB_ADMIN_PASSWORD
 #   docker compose up -d
-#   # then: ORACLE_USER=system ORACLE_PASSWORD=OraViz2026 ORACLE_DSN=localhost:1530/FREEPDB1
+#   unset ORAVIZ_DB_ADMIN_PASSWORD
+#   # Follow README to provision a separate ORAVIZ_READER account for MCP.
 #
 # Note: the container password variable for the official Oracle image is ORACLE_PWD
 # (ORACLE_PASSWORD is the gvenzl/* image spelling). The MCP server reads ORACLE_PASSWORD.
@@ -17,9 +19,9 @@ services:
     image: container-registry.oracle.com/database/free:latest
     container_name: oraviz-oracle
     ports:
-      - "1530:1521"
+      - "127.0.0.1:1530:1521"
     environment:
-      ORACLE_PWD: ${ORACLE_PASSWORD:?set ORACLE_PASSWORD in .env}
+      ORACLE_PWD: ${ORAVIZ_DB_ADMIN_PASSWORD:?set a separate ORAVIZ_DB_ADMIN_PASSWORD}
     volumes:
       - oraviz-oracle-data:/opt/oracle/oradata
     healthcheck:

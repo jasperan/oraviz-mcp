@@ -20,7 +20,7 @@
 
 OraViz MCP is [`pab1it0/adx-mcp-server`](https://github.com/pab1it0/adx-mcp-server) reimagined for **Oracle AI Database** -- a
 deliberately tiny alternative to the broad official Oracle MCP servers. It speaks SQL, profiles tables, and turns result
-sets into **PNG charts** any MCP client can show. Seven tools, read-only, no Oracle client libraries (python-oracledb
+sets into **PNG charts** any MCP client can show. Seven read-oriented tools, no Oracle client libraries (python-oracledb
 thin mode talks straight to Oracle AI Database **26ai Free** or any newer release).
 
 Two ideas shape everything:
@@ -29,7 +29,10 @@ Two ideas shape everything:
   preview -- not a wall of rows.
 - **Context engineering.** Agents pay for every token a tool returns, so OraViz never dumps a result set. Results are
   preview-capped, rendered as one compact markdown table with a metadata header, and large values (CLOB, BLOB, VECTOR)
-  are summarised.
+  are summarised. Raw LOBs are never read.
+
+Deploy with a dedicated Oracle reader account. Network transports require verified bearer tokens;
+stdio uses local OS trust. See [SECURITY.md](SECURITY.md) for the security boundaries and deployment checklist.
 
 ## Visualization at a Glance
 
@@ -51,8 +54,8 @@ Two ideas shape everything:
 - **Charts, not query dumps** -- `create_chart` renders bar, line, area, scatter, pie, histogram, and vector (PCA) charts with an Oracle-red palette and returns the PNG as MCP image content.
 - **Context-engineered results** -- bounded previews with explicit `truncated` metadata, one header per table instead of repeated JSON keys, CLOB/BLOB/VECTOR summarised, per-cell truncation.
 - **Profile before you plot** -- `profile_table` returns per-column nulls, distinct counts, min/max/avg so the model can pick the right chart without fetching rows.
-- **Read-only by design** -- validation admits a single `SELECT`/`WITH` statement (DDL, DML, and PL/SQL are rejected before connecting), every query is stopped by `ORACLE_CALL_TIMEOUT`, and row and cell caps apply everywhere. The guard is lexical; for a hard boundary, point OraViz at a read-only database account.
-- **Minimal surface** -- 7 tools, ~700 statements of source, stdio/http/sse/streamable-http transports, structured JSON logs on stderr (stdout stays clean for stdio).
+- **Conservative query admission** -- one `SELECT`/`WITH` with a reviewed built-in function allowlist; unreviewed calls with parentheses, writes, PL/SQL, database links, sequences, and locking are denied. Bare parameterless routines and routines inside views/synonyms can escape lexical detection. Oracle `READ` grants and review of inherited/`PUBLIC` execution privileges are essential. `ORACLE_CALL_TIMEOUT` bounds each database round trip.
+- **Controlled surface** -- 7 tools with an operator allowlist, strict inputs, bounded concurrency, authenticated network transports, and metadata-only JSON audit logs on stderr (stdout stays clean for stdio).
 - **Zero client install** -- python-oracledb thin mode; no Oracle Instant Client, no `ORACLE_HOME`, no tnsnames.
 
 ## The Context Contract
@@ -64,7 +67,10 @@ Every row-returning tool follows the same rules, and the test suite asserts them
 | Query preview size (`execute_query` without `max_rows`) | 25 rows | `ORACLE_MCP_PREVIEW_ROWS` |
 | Hard row cap per query (charts included) | 500 rows | `ORACLE_MCP_MAX_ROWS` |
 | Longest cell before `...` truncation | 500 chars | `ORACLE_MCP_MAX_CELL_CHARS` |
-| Statement timeout | 60 s | `ORACLE_CALL_TIMEOUT` |
+| Database round-trip timeout (not a whole-tool deadline) | 60 s; range 1–300, cannot disable | `ORACLE_CALL_TIMEOUT` |
+| Result columns | 64; maximum 200 | `ORACLE_MCP_MAX_RESULT_COLUMNS` |
+| Combined text + serialized JSON structured content / PNG limit | 256,000 characters / 2,000,000 bytes | Fixed |
+| Concurrent tool calls per process | 4; range 1–32 | `ORACLE_MCP_MAX_CONCURRENT` |
 | Metadata header per result | `<n> row(s) (truncated; more rows exist) \| columns: A, B` | -- |
 
 A tool result therefore looks like this instead of a 25-dictionary JSON array:
@@ -80,9 +86,15 @@ A tool result therefore looks like this instead of a 25-dictionary JSON array:
 | West | 360759 |
 ```
 
-Weird values compress instead of exploding: `CLOB` renders as text (truncated), `BLOB` as `<binary 1234 bytes>`,
-`VECTOR(384)` as `<VECTOR(384)>`, midnight timestamps as dates. When the model really needs raw rows it can pass
+Raw `CLOB`/`NCLOB`/`BLOB`/`BFILE` locators render as `<LOB>` without reading their contents; byte values are
+summarized, `VECTOR(384)` renders as `<VECTOR(384)>`, and midnight timestamps as dates. For more rows, pass
 `max_rows` explicitly -- and the server still stops at the hard cap.
+
+Numeric settings have bounded defaults (at most 5,000 rows and 4,096 characters per cell).
+Invalid numeric environment settings warn and fall back to defaults. Over-limit MCP responses are rejected,
+including when a rendered table was already truncated but the combined response exceeds the budget.
+Data mirrored in text and structured JSON counts in both representations.
+Row/output caps do not bound database CPU or total execution time; see [resource limits](SECURITY.md#server-controls-and-limits).
 
 ## Tools
 
@@ -103,7 +115,7 @@ chart contract simple and SQL-driven:
 
 ```sql
 SELECT region, ROUND(SUM(revenue), 2) AS revenue
-FROM sales_demo
+FROM oraviz.sales_demo
 GROUP BY region
 ORDER BY revenue DESC
 ```
@@ -113,7 +125,7 @@ create_chart(sql=..., chart_type="bar", title="Revenue by region")
 ```
 
 ```sql
-SELECT product_name, embedding FROM product_vectors
+SELECT product_name, embedding FROM oraviz.product_vectors
 ```
 
 ```python
@@ -132,46 +144,75 @@ create_chart(sql=..., chart_type="vector", title="Product embeddings")
 ### 1. Start Oracle AI Database 26ai Free
 
 ```bash
-# Standalone
-docker run -d --name oraviz-oracle -p 1530:1521 \
-  -e ORACLE_PWD=OraViz2026 \
-  container-registry.oracle.com/database/free:latest
-
-# Or with the bundled compose file (.env needs ORACLE_PASSWORD=...)
+# Disposable local development database; the admin password is NOT the MCP password.
+read -rsp 'Database admin password: ' ORAVIZ_DB_ADMIN_PASSWORD
+export ORAVIZ_DB_ADMIN_PASSWORD
 docker compose up -d
+unset ORAVIZ_DB_ADMIN_PASSWORD
 ```
 
 The container takes a couple of minutes to initialize. `docker ps` shows `(healthy)` when it is ready.
+The listener is published only on `127.0.0.1:1530`. The database stores data in a named volume.
+The floating database image is for this demo; pin a reviewed digest for controlled deployments.
 
 ### 2. (Optional) Load the demo schema
 
-`examples/demo-sales.sql` creates a demo user, a 96-row `SALES_DEMO` table (12 months, 4 regions, 2 channels), and a
-6-row `PRODUCT_VECTORS` table so 26ai vector columns can be inspected too. All values are deterministic.
+Create an owner only for setup, then give a separate reader access to the two demo tables.
+The SQL below uses password placeholders: replace them privately with separate generated passwords.
+Do not reuse the legacy passwords or broad grants in the demo script's historical header.
 
 ```bash
-docker exec -i oraviz-oracle sqlplus -S system/OraViz2026@//localhost:1521/FREEPDB1 <<'SQL'
-CREATE USER oraviz IDENTIFIED BY "OraViz2026" DEFAULT TABLESPACE USERS QUOTA UNLIMITED ON USERS;
-GRANT CONNECT, RESOURCE TO oraviz;
-SQL
-
-docker exec -i oraviz-oracle sqlplus -S oraviz/OraViz2026@//localhost:1521/FREEPDB1 \
-  < examples/demo-sales.sql
+docker exec -it oraviz-oracle sqlplus -L system@//localhost:1521/FREEPDB1
 ```
+
+At the SQL prompt (admin use is limited to provisioning):
+
+```sql
+CREATE USER oraviz IDENTIFIED BY "REPLACE_WITH_OWNER_SECRET"
+  DEFAULT TABLESPACE USERS QUOTA 20M ON USERS;
+GRANT CREATE SESSION, CREATE TABLE TO oraviz;
+CREATE USER oraviz_reader IDENTIFIED BY "REPLACE_WITH_READER_SECRET";
+GRANT CREATE SESSION TO oraviz_reader;
+EXIT;
+```
+
+Load the deterministic 96-row `SALES_DEMO` and six-row `PRODUCT_VECTORS` tables as the owner.
+The script drops and recreates these tables; use it only in this disposable schema.
+
+```bash
+docker cp examples/demo-sales.sql oraviz-oracle:/tmp/oraviz-demo-sales.sql
+docker exec -it oraviz-oracle sqlplus -L oraviz@//localhost:1521/FREEPDB1
+```
+
+At the owner SQL prompt:
+
+```sql
+@/tmp/oraviz-demo-sales.sql
+GRANT READ ON oraviz.sales_demo TO oraviz_reader;
+GRANT READ ON oraviz.product_vectors TO oraviz_reader;
+EXIT;
+```
+
+The initial `DROP TABLE` statements can report missing tables on a fresh schema.
+Only `ORAVIZ_READER` is used by the MCP server. For production, grant `READ` on
+approved tables or reviewed views and audit inherited permissions; never use a schema owner or admin.
 
 ### 3. Point your MCP client at the server
 
 <details>
-<summary><strong>Claude Desktop / Cursor</strong> (uvx from git, no clone needed)</summary>
+<summary><strong>Claude Desktop / Cursor</strong> (uvx from a reviewed commit)</summary>
+
+Replace `REVIEWED_COMMIT_SHA` with an audited commit ID. Inject `ORACLE_PASSWORD` into the MCP host's
+protected process environment; it is intentionally absent from the shareable client configuration.
 
 ```json
 {
   "mcpServers": {
     "oraviz": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/jasperan/oraviz-mcp", "oraviz-mcp"],
+      "args": ["--from", "git+https://github.com/jasperan/oraviz-mcp@REVIEWED_COMMIT_SHA", "oraviz-mcp"],
       "env": {
-        "ORACLE_USER": "oraviz",
-        "ORACLE_PASSWORD": "OraViz2026",
+        "ORACLE_USER": "oraviz_reader",
         "ORACLE_DSN": "localhost:1530/FREEPDB1"
       }
     }
@@ -190,8 +231,7 @@ docker exec -i oraviz-oracle sqlplus -S oraviz/OraViz2026@//localhost:1521/FREEP
       "command": "uv",
       "args": ["--directory", "/path/to/oraviz-mcp", "run", "oraviz-mcp"],
       "env": {
-        "ORACLE_USER": "oraviz",
-        "ORACLE_PASSWORD": "OraViz2026",
+        "ORACLE_USER": "oraviz_reader",
         "ORACLE_DSN": "localhost:1530/FREEPDB1"
       }
     }
@@ -216,21 +256,21 @@ docker build -t oraviz-mcp .
                "-e", "ORACLE_USER", "-e", "ORACLE_PASSWORD", "-e", "ORACLE_DSN",
                "oraviz-mcp"],
       "env": {
-        "ORACLE_USER": "oraviz",
-        "ORACLE_PASSWORD": "OraViz2026",
+        "ORACLE_USER": "oraviz_reader",
         "ORACLE_DSN": "localhost:1530/FREEPDB1"
       }
     }
   }
 }
 ```
-`--network host` lets the container reach the database on the host (on Docker Desktop, `host.docker.internal`
-also works). Drop both if the database is reachable on the container network.
+`--network host` is a Linux local-demo convenience for reaching the loopback database.
+For a deployment, use a dedicated private network and restrict egress as described in [SECURITY.md](SECURITY.md).
+Inject the reader password at runtime, and use a reviewed image digest when distributing the image.
 </details>
 
 ### 4. Ask for a chart
 
-> "Profile the SALES_DEMO table, then chart total revenue by region."
+> "Profile ORAVIZ.SALES_DEMO, then chart total revenue by region from ORAVIZ.SALES_DEMO."
 
 The model will call `profile_table`, pick a chart type, run `create_chart`, and you get a rendered image back.
 
@@ -238,7 +278,7 @@ The model will call `profile_table`, pick a chart type, run `create_chart`, and 
 
 | Variable | Description | Default |
 |---|---|---|
-| `ORACLE_USER` | Database user (**required**) | -- |
+| `ORACLE_USER` | Dedicated reader with `CREATE SESSION` and object `READ` grants (**required**); known admins rejected | -- |
 | `ORACLE_PASSWORD` | Password for the user (**required**) | -- |
 | `ORACLE_HOST` | Database hostname | `localhost` |
 | `ORACLE_PORT` | Listener port | `1521` |
@@ -247,21 +287,34 @@ The model will call `profile_table`, pick a chart type, run `create_chart`, and 
 | `ORACLE_CONFIG_DIR` | Wallet config directory (Autonomous Database / mTLS) | -- |
 | `ORACLE_WALLET_LOCATION` | Wallet location | -- |
 | `ORACLE_WALLET_PASSWORD` | Wallet password | -- |
-| `ORACLE_MCP_PREVIEW_ROWS` | Default preview size for `execute_query` | `25` |
-| `ORACLE_MCP_MAX_ROWS` | Hard row cap per query | `500` |
-| `ORACLE_MCP_MAX_CELL_CHARS` | Per-cell truncation limit | `500` |
+| `ORACLE_MCP_PREVIEW_ROWS` | Preview size, 1–5,000, also capped by max rows | `25` |
+| `ORACLE_MCP_MAX_ROWS` | Hard row cap per query, 1–5,000 | `500` |
+| `ORACLE_MCP_MAX_CELL_CHARS` | Per-cell truncation limit, 1–4,096 | `500` |
+| `ORACLE_MCP_MAX_RESULT_COLUMNS` | Result column cap, 1–200 | `64` |
+| `ORACLE_MCP_MAX_CONCURRENT` | Admitted calls per process, 1–32 | `4` |
+| `ORACLE_MCP_ALLOWED_TOOLS` | Comma-separated exact names from the seven tools above; empty/unknown entries reject startup | All seven |
 | `ORACLE_CONNECT_TIMEOUT` | TCP connect timeout, seconds | `10` |
-| `ORACLE_CALL_TIMEOUT` | Per-statement timeout, seconds (`0` disables) | `60` |
+| `ORACLE_CALL_TIMEOUT` | Per database round-trip timeout, seconds, 1–300; cannot disable | `60` |
 | `ORACLE_MCP_SERVER_TRANSPORT` | `stdio` (default), `http`, `sse`, `streamable-http` | `stdio` |
 | `ORACLE_MCP_BIND_HOST` | Bind host for network transports | `127.0.0.1` |
 | `ORACLE_MCP_BIND_PORT` | Bind port for network transports | `8080` |
+| `ORACLE_MCP_AUTH_ISSUER` | Required network JWT issuer, HTTPS URL | -- |
+| `ORACLE_MCP_AUTH_AUDIENCE` | Required network JWT resource audience | -- |
+| `ORACLE_MCP_AUTH_JWKS_URL` | Required network signing-key endpoint, HTTPS URL | -- |
+| `ORACLE_MCP_AUTH_REQUIRED_SCOPES` | Required network scopes, space-separated (e.g. `oraviz:read`) | -- |
+| `ORACLE_MCP_AUTH_BASE_URL` | Optional public HTTPS base URL for discovery, excluding `/mcp` and `/sse` | -- |
 | `LOG_FORMAT` | `json` (default) or `console` for human-readable logs | `json` |
 | `LOG_LEVEL` | structlog level number | `20` (INFO) |
 
-Copy [`.env.template`](.env.template) to `.env` -- the server loads it via python-dotenv.
+Copy [`.env.template`](.env.template) to `.env` with `umask 077` -- the server loads it via python-dotenv.
+Keep it untracked, never source it as shell code, and use process environment injection for literal
+secrets containing `${...}`. Existing process environment settings take precedence.
 
-The network transports (`http`, `sse`, `streamable-http`) have no built-in authentication. Keep the default
-`127.0.0.1` bind, or put an authenticating proxy in front of the port before exposing it.
+All network transports (`http`, `sse`, `streamable-http`) require auth, including loopback and proxy use.
+Bearer tokens need a valid RS256 signature, issuer, audience, expiry, nonempty signed `sub`, applicable `nbf`, and required scopes.
+All authenticated users share the configured Oracle principal; this is not per-user or multitenant data
+authorization. TLS, private networking, gateway limits, audit retention, and host approval for sensitive
+reads/exports remain deployment responsibilities. See the [network configuration example](SECURITY.md#network-deployment).
 
 ## Architecture
 
@@ -293,10 +346,10 @@ uv sync --extra dev          # install everything (matplotlib, fastmcp, oracledb
 uv run pytest                # hermetic unit suite (~98% line coverage; the 90% gate is enforced)
 uv run pytest -k chart       # focus on one area
 
-# Live integration tests against the 26ai Free container from Quick Start
+# Live tests create/drop scratch objects: use a separate disposable test owner,
+# not the MCP reader. Inject ORAVIZ_TEST_PASSWORD privately before this command.
 ORAVIZ_TEST_DSN=localhost:1530/FREEPDB1 \
 ORAVIZ_TEST_USER=oraviz \
-ORAVIZ_TEST_PASSWORD=OraViz2026 \
 uv run pytest tests/integration -v --no-cov
 
 docker build -t oraviz-mcp . # container build (multi-stage, non-root)
@@ -316,6 +369,10 @@ flooding the model's context. If you want the database *operated*, use the offic
 *seen*, use this one.
 
 ## Benchmarks
+
+**Historical snapshot:** the numbers, paper PDFs, and figures below were captured before security
+hardening. They are retained unchanged and have not been recomputed for the current schemas or limits.
+Current guarantees and limitations are in [SECURITY.md](SECURITY.md); see also [paper/README.md](paper/README.md).
 
 We measured the tokens an agent must process to answer the same questions through OraViz and through the
 official [SQLcl MCP server](https://docs.oracle.com/en/database/oracle/sql-developer-command-line/26.2/sqcug/using-oracle-sqlcl-mcp-server.html),

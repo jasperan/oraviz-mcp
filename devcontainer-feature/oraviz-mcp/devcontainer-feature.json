@@ -7,17 +7,17 @@
         "version": {
             "type": "string",
             "default": "latest",
-            "description": "Version of the OraViz MCP server to install (defaults to latest)"
+            "description": "Reviewed commit ID, tag or branch to install; latest follows the default branch (development only)"
         },
         "oracleUser": {
             "type": "string",
-            "default": "system",
-            "description": "Oracle database user"
+            "default": "oraviz_reader",
+            "description": "Dedicated Oracle reader with CREATE SESSION and object READ grants"
         },
         "oraclePassword": {
             "type": "string",
             "default": "",
-            "description": "Password for the Oracle database user (empty by default, must be specified at runtime)"
+            "description": "Legacy local-only option; leave empty and inject ORACLE_PASSWORD at runtime, never in devcontainer.json"
         },
         "oracleHost": {
             "type": "string",

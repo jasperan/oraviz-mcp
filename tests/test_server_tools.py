@@ -119,10 +119,11 @@ class TestGetOracleConnection:
         assert kwargs["dsn"] == "localhost:1521/FREEPDB1"
         assert kwargs["tcp_connect_timeout"] == 10
         assert "config_dir" not in kwargs
-        assert fake.return_value.fetch_lobs is False
+        assert fake.return_value.outputtypehandler is server._lob_locator
+        assert fake.return_value.module == "oraviz-mcp"
         assert fake.return_value.call_timeout == 60000
 
-    def test_call_timeout_can_be_disabled(self, monkeypatch):
+    def test_call_timeout_cannot_be_disabled(self, monkeypatch):
         configure(monkeypatch, call_timeout=0)
 
         class StubConnection:
@@ -130,7 +131,9 @@ class TestGetOracleConnection:
 
         stub = StubConnection()
         monkeypatch.setattr(server.oracledb, "connect", MagicMock(return_value=stub))
-        get_oracle_connection()
+        with pytest.raises(ValueError, match="TIMEOUT"):
+            get_oracle_connection()
+        server.oracledb.connect.assert_not_called()
         assert not hasattr(stub, "call_timeout")
 
     def test_wallet_arguments(self, monkeypatch):

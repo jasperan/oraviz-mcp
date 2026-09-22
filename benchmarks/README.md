@@ -2,7 +2,13 @@
 
 Script: [`run_benchmarks.py`](run_benchmarks.py) ·
 Raw results: [`results/benchmark-results.json`](results/benchmark-results.json) ·
-Latest table: [`results/benchmark-results.md`](results/benchmark-results.md)
+Recorded table: [`results/benchmark-results.md`](results/benchmark-results.md)
+
+**Historical snapshot:** these measurements, charts, and associated paper PDFs predate the
+security hardening. Values are preserved unchanged; the current tool schemas, validation,
+LOB behavior, and limits can change token counts. These are not current security or performance
+guarantees. See [SECURITY.md](../SECURITY.md) for current controls and [paper/README.md](../paper/README.md)
+for the publication boundary.
 
 ## What is measured
 
@@ -83,15 +89,25 @@ tokens, 53.2% total savings.
 ## Reproduce
 
 ```bash
-# 1) Oracle 26ai Free container + demo schema (see the main README Quick Start)
+# 1) Isolated Oracle 26ai Free container + disposable demo owner (see README Quick Start)
 # 2) SQLcl 26.1 available (SQLCL_BIN=/path/to/sql) and the dev extra installed
+read -rsp 'Disposable benchmark owner password: ' ORAVIZ_BENCH_PASSWORD
+export ORAVIZ_BENCH_PASSWORD
 uv run --extra dev python benchmarks/run_benchmarks.py \
-  --dsn localhost:1530/FREEPDB1 --user oraviz --password OraViz2026
+  --dsn localhost:1530/FREEPDB1 --user oraviz
+unset ORAVIZ_BENCH_PASSWORD
 ```
 
 Environment overrides: `ORAVIZ_BENCH_DSN`, `ORAVIZ_BENCH_USER`,
 `ORAVIZ_BENCH_PASSWORD`, `SQLCL_BIN`. Results are written to
-`benchmarks/results/`.
+`benchmarks/results/`. The harness has legacy demo defaults: always override the password.
+Reproduce in a separate checkout at the recorded revision to preserve committed evidence;
+running the current code produces a new experiment, not the historical snapshot.
+
+This legacy comparison uses the disposable owner because SQLcl creates its audit table and
+the harness queries owner-local metadata. It does not represent the production reader-account
+deployment. SQLcl receives connection credentials as part of benchmark setup; keep the entire
+run, subprocess traces, and artifacts private and never use real service credentials.
 
 ## Limitations
 

@@ -21,6 +21,9 @@ Measurements: `benchmarks/`. Results deck: `slides/`. Showcase site: `docs/`
 src/oraviz_mcp/server.py   FastMCP app, config, Oracle client, validation, the 7 tools
 src/oraviz_mcp/charts.py   pure chart rendering (bar/line/area/scatter/pie/histogram/vector -> PNG)
 src/oraviz_mcp/main.py     entry point: env validation, transport selection
+src/oraviz_mcp/query_policy.py     conservative SQL admission rules
+src/oraviz_mcp/tool_policy.py      tool allowlist, input/output budgets, audit events
+src/oraviz_mcp/transport_security.py  required JWT authentication for network transports
 tests/                     hermetic unit tests (fake cursor) + tests/integration/ (live Oracle)
 benchmarks/                token benchmark harness + results JSON/MD
 paper/                     NeurIPS-style paper (paper.tex + sections/ + figures/) and make_figures.py
@@ -57,8 +60,8 @@ python3 -m http.server 8123 --directory docs                     # preview the s
 - **Context contract.** Every row-returning tool renders via `render_rows`
   (one metadata line, markdown header, escaped cells) and is bounded by
   `ORACLE_MCP_MAX_ROWS` / `ORACLE_MCP_PREVIEW_ROWS` / `ORACLE_MCP_MAX_CELL_CHARS`,
-  with a statement timeout (`ORACLE_CALL_TIMEOUT`, python-oracledb
-  `call_timeout` in **milliseconds**). Tests assert the metadata line, the
+  with a timeout per database round trip (`ORACLE_CALL_TIMEOUT`, python-oracledb
+  `call_timeout` in **milliseconds**, not a whole-statement deadline). Tests assert the metadata line, the
   truncation flag, cell escaping, and value formatting; change tests and docs
   together with any behavior change.
 - **Tool surface.** Keep it at seven single-purpose tools. New capability means
@@ -70,6 +73,13 @@ python3 -m http.server 8123 --directory docs                     # preview the s
   validated then quoted; numeric limits only ever interpolate validated ints.
 - **Escaping everywhere.** `_escape_text` applies to cell values and column
   names so tables cannot be broken by data.
+- **Security boundaries.** All network transports require verified scoped tokens,
+  even behind a proxy. Preserve the denying provider on unconfigured stdio apps
+  so programmatic transport overrides cannot expose them. Tool policy is an
+  immutable operator allowlist; disabled tools cannot be called by guessing names.
+- **Audit privacy.** Never log SQL, arguments, tokens, credentials, DSNs, results,
+  or raw database errors. Preserve per-call JSON audit events on stderr and
+  request IDs in Oracle session tags. See `SECURITY.md` for deployment duties.
 
 ## Conventions
 
@@ -89,9 +99,11 @@ python3 -m http.server 8123 --directory docs                     # preview the s
 - The bind name `:table` is reserved in Oracle — use `:table_name`.
 - Do **not** reintroduce `SET TRANSACTION READ ONLY`: it raises ORA-01466 for
   tables created or modified shortly before the query (including our own demo
-  data), which breaks the normal create-then-query workflow. The read-only
-  guarantee is the lexical guard; for a hard boundary, use a read-only
-  database account.
+  data), which breaks the normal create-then-query workflow. The lexical guard
+  restricts syntax; it cannot prove read-only semantics. Use a dedicated account
+  with object-level READ grants and review inherited/PUBLIC routine privileges.
+- Raw LOB locators must never be read. Keep the output type handler and `<LOB>`
+  marker; do not materialize large objects just to truncate them afterward.
 - `charts.py` must stay pyplot-free (`Figure` + `FigureCanvasAgg`): tool calls
   run on a worker pool and pyplot is not thread-safe.
 - SQLcl MCP's `connect` tool only accepts saved SQLcl connections; the

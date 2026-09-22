@@ -9,7 +9,7 @@ startCommand:
     properties:
       oracleUser:
         type: string
-        description: Oracle database user, e.g. system
+        description: Dedicated Oracle reader with CREATE SESSION and object-level READ grants
       oraclePassword:
         type: string
         description: Password for the Oracle database user
@@ -40,8 +40,8 @@ startCommand:
       }
     })
   exampleConfig:
-    oracleUser: system
-    oraclePassword: your_password
+    oracleUser: oraviz_reader
+    oraclePassword: REPLACE_WITH_RUNTIME_SECRET
     oracleHost: localhost
     oraclePort: 1521
     oracleService: FREEPDB1

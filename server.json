@@ -23,7 +23,7 @@
     "required": {
       "ORACLE_USER": {
         "type": "string",
-        "description": "Oracle database user (for the Free container, SYSTEM or an app user)"
+        "description": "Dedicated Oracle reader with CREATE SESSION and object-level READ grants; never an administrator"
       },
       "ORACLE_PASSWORD": {
         "type": "string",
@@ -49,19 +49,55 @@
       },
       "ORACLE_MCP_MAX_ROWS": {
         "type": "integer",
-        "description": "Hard cap on rows returned per query (default: 500)"
+        "description": "Hard cap on rows returned per query, 1..5000 (default: 500)"
       },
       "ORACLE_MCP_PREVIEW_ROWS": {
         "type": "integer",
-        "description": "Default preview size for execute_query (default: 25)"
+        "description": "Preview rows, 1..5000, also bounded by max rows (default: 25)"
       },
       "ORACLE_MCP_MAX_CELL_CHARS": {
         "type": "integer",
-        "description": "Maximum characters per table cell before truncation (default: 500)"
+        "description": "Characters per cell, 1..4096 (default: 500)"
+      },
+      "ORACLE_MCP_MAX_RESULT_COLUMNS": {
+        "type": "integer",
+        "description": "Result columns, 1..200 (default: 64)"
+      },
+      "ORACLE_MCP_MAX_CONCURRENT": {
+        "type": "integer",
+        "description": "Admitted tool calls per process, 1..32 (default: 4)"
+      },
+      "ORACLE_MCP_ALLOWED_TOOLS": {
+        "type": "string",
+        "description": "Comma-separated exact tool names; unset enables seven, empty/unknown entries reject startup"
+      },
+      "ORACLE_CALL_TIMEOUT": {
+        "type": "integer",
+        "description": "Database round-trip timeout in seconds, 1..300; cannot disable (default: 60)"
       },
       "ORACLE_MCP_SERVER_TRANSPORT": {
         "type": "string",
-        "description": "Transport mode: stdio (default), http, sse, or streamable-http"
+        "description": "Transport: stdio (default), http, sse, streamable-http; every network transport requires auth"
+      },
+      "ORACLE_MCP_AUTH_ISSUER": {
+        "type": "string",
+        "description": "Required for network transports: HTTPS JWT issuer"
+      },
+      "ORACLE_MCP_AUTH_AUDIENCE": {
+        "type": "string",
+        "description": "Required for network transports: JWT resource audience"
+      },
+      "ORACLE_MCP_AUTH_JWKS_URL": {
+        "type": "string",
+        "description": "Required for network transports: HTTPS JWKS endpoint (RS256)"
+      },
+      "ORACLE_MCP_AUTH_REQUIRED_SCOPES": {
+        "type": "string",
+        "description": "Required for network transports: space-separated scopes, e.g. oraviz:read"
+      },
+      "ORACLE_MCP_AUTH_BASE_URL": {
+        "type": "string",
+        "description": "Optional public HTTPS base URL for OAuth discovery; omit /mcp or /sse"
       },
       "ORACLE_MCP_BIND_HOST": {
         "type": "string",
