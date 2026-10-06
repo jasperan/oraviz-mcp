@@ -762,6 +762,9 @@ def get_table_details(table_name: TableName, exact_row_count: bool = False) -> D
 _NUMERIC_TYPES = ("NUMBER", "FLOAT", "BINARY_FLOAT", "BINARY_DOUBLE")
 _DATE_TYPES = ("DATE", "TIMESTAMP")
 _CHARACTER_TYPES = ("CHAR", "VARCHAR2", "NCHAR", "NVARCHAR2")
+# Types COUNT() accepts. LOBs, VECTOR, XMLTYPE, LONG, BFILE and object types raise
+# ORA-22849/ORA-00997 and would fail the whole profile query.
+_COUNTABLE_TYPES = ("INTERVAL", "RAW", "ROWID", "UROWID", "JSON")
 
 
 def _profile_metrics(data_type: str) -> List[str]:
@@ -773,7 +776,9 @@ def _profile_metrics(data_type: str) -> List[str]:
         return ["non_null", "distinct", "min", "max"]
     if data_type.startswith(_CHARACTER_TYPES):
         return ["non_null", "distinct", "min", "max"]
-    return ["non_null"]
+    if data_type.startswith(_COUNTABLE_TYPES):
+        return ["non_null"]
+    return []
 
 
 _METRIC_EXPRESSION = {
@@ -852,7 +857,10 @@ def profile_table(
             for _column, metric in [metric for metric in metrics if metric[0] == column["column_name"]]:
                 value = next(metric_values)
                 entry[metric] = format_value(value)
-            entry["nulls"] = row_count - entry.get("non_null", 0)
+            if "non_null" in entry:
+                entry["nulls"] = row_count - entry["non_null"]
+            else:
+                entry["note"] = "not profiled: aggregates are unsupported for this data type"
             profile.append(entry)
         result = {
             "table": f"{schema}.{table}" if schema else table,

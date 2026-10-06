@@ -446,6 +446,29 @@ class TestProfileTable:
         with pytest.raises(ValueError, match="not found"):
             profile_table("nope")
 
+    def test_types_without_aggregates_are_reported_not_queried(self, monkeypatch):
+        configure(monkeypatch)
+        cursor, _ = patch_connection(
+            monkeypatch,
+            {
+                "description": COLUMN_METADATA,
+                "rows": [
+                    ("NAME", "VARCHAR2", 20, None, None, "Y", 1),
+                    ("EMBEDDING", "VECTOR", 8200, None, None, "Y", 2),
+                    ("NOTES", "CLOB", 4000, None, None, "Y", 3),
+                ],
+            },
+            {"one": (10, 9, 4, "a", "z")},
+        )
+        profile = profile_table("product_vectors")
+        aggregate_sql = cursor.executed[1][0]
+        assert '"EMBEDDING"' not in aggregate_sql and '"NOTES"' not in aggregate_sql
+        by_column = {entry["column"]: entry for entry in profile["columns"]}
+        assert by_column["NAME"]["nulls"] == 1
+        for column in ("EMBEDDING", "NOTES"):
+            assert "nulls" not in by_column[column]
+            assert by_column[column]["note"].startswith("not profiled")
+
     def test_column_truncation_note(self, monkeypatch):
         configure(monkeypatch)
         patch_connection(
