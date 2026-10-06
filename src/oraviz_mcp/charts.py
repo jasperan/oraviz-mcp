@@ -63,11 +63,16 @@ def _to_float(value: Any) -> Optional[float]:
     return number if math.isfinite(number) else None
 
 
+def _plain_text(text: str) -> str:
+    """Keep matplotlib from parsing database text as mathtext ($...$)."""
+    return text.replace("$", r"\$")
+
+
 def _label(value: Any) -> str:
     if value is None:
         return "(null)"
     text = str(value)
-    return text if len(text) <= 24 else text[:21] + "..."
+    return _plain_text(text if len(text) <= 24 else text[:21] + "...")
 
 
 def _vector_values(value: Any) -> Optional[List[float]]:
@@ -354,6 +359,10 @@ def render_chart(
             f"Unsupported chart_type '{chart_type}'. Valid types: {', '.join(CHART_TYPES)}"
         )
     columns, rows = _prepare(columns, rows)
+    columns = [_plain_text(str(column)) for column in columns]
+    title, x_label, y_label = (
+        _plain_text(text) if text else text for text in (title, x_label, y_label)
+    )
 
     figure = Figure(figsize=(9.0, 5.0), dpi=144)
     FigureCanvasAgg(figure)

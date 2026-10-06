@@ -252,3 +252,22 @@ class TestProjectVectors:
         _, _, explained = _project_vectors([[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]])
         assert explained[0] == pytest.approx(0.5, abs=1e-9)
         assert explained[1] == pytest.approx(0.5, abs=1e-9)
+
+
+class TestMathtextEscaping:
+    """Database text and caller labels are data, never matplotlib mathtext."""
+
+    @pytest.mark.parametrize("chart_type", ["bar", "line", "area", "pie", "histogram", "scatter"])
+    def test_dollar_text_in_labels_does_not_fail_rendering(self, chart_type):
+        rows = [["$\\bad$", 3, 4], ["$5 to $10", 2, 5], ["plain", 1, 6]]
+        _png(
+            ["$\\worse$ col", "A_$x$", "B"],
+            rows,
+            chart_type,
+            title="Cost $\\bad$",
+            x_label="$\\x$",
+            y_label="$_$",
+        )
+
+    def test_vector_annotations_may_contain_dollar_signs(self):
+        _png(["NAME", "EMBEDDING"], [["$\\a$", [1.0, 0.0]], ["$b", [0.0, 1.0]], ["c", [1.0, 1.0]]], "vector")
