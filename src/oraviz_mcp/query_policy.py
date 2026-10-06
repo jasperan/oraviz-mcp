@@ -40,7 +40,7 @@ _PAREN_KEYWORDS = frozenset(
     "AS IN EXISTS OVER PARTITION VALUES GROUPING SETS ROLLUP CUBE "
     "AND OR NOT WHEN THEN ELSE ON WHERE HAVING BY SELECT FROM JOIN "
     # Reserved words: Oracle cannot parse them as routine names.
-    "USING GROUP DISTINCT UNION INTERSECT MINUS ALL ANY SOME LIKE BETWEEN".split()
+    "GROUP DISTINCT UNION INTERSECT MINUS ALL ANY LIKE BETWEEN".split()
 )
 # Data types that may carry a precision, e.g. CAST(x AS NUMBER(10, 2)).
 _CAST_TYPES = frozenset(
@@ -59,6 +59,32 @@ def _closing_paren(tokens, index):
             if depth == 0:
                 return position
     return None
+
+
+def _is_some_quantifier(tokens, index) -> bool:
+    """SOME is not reserved in Oracle: admit ``(`` only as ``<op> SOME (subquery)``."""
+    return index > 1 and tokens[index - 2][0] == "symbol" and tokens[index - 2][1] in {"=", "<", ">", "!"}
+
+
+def _is_join_using(tokens, index) -> bool:
+    """USING is not reserved in Oracle: admit ``(`` only as ``JOIN <table> USING (``."""
+    nesting = 0
+    for position in range(index - 2, -1, -1):
+        kind, value = tokens[position]
+        if kind == "symbol" and value == ")":
+            nesting += 1
+        elif kind == "symbol" and value == "(":
+            nesting -= 1
+            if nesting < 0:
+                return False
+        elif nesting == 0 and kind == "symbol" and value == ",":
+            return False
+        elif nesting == 0 and kind == "word":
+            if value == "JOIN":
+                return position < index - 2
+            if value in {"SELECT", "FROM", "WHERE", "ON", "USING", "HAVING", "BY", "AND", "OR", "NOT"}:
+                return False
+    return False
 
 
 def _is_cast_type(tokens, index, openers) -> bool:
@@ -142,7 +168,9 @@ def validate_query(query: str) -> str:
                         previous_kind == "word"
                         and not qualified
                         and (
-                            _is_cast_type(tokens, index, openers)
+                            (previous == "SOME" and _is_some_quantifier(tokens, index))
+                            or (previous == "USING" and _is_join_using(tokens, index))
+                            or _is_cast_type(tokens, index, openers)
                             or _is_cte_column_list(tokens, index, depth, with_headers)
                         )
                     ):
