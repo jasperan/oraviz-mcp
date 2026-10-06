@@ -41,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `list_tables` and `get_table_schema` are bounded by `ORACLE_MCP_MAX_ROWS` with explicit truncation
   metadata, instead of fetching every row.
+- SQL admission no longer rejects ordinary read-only SQL that merely has a parenthesis after a
+  reserved word or type: `JOIN ... USING (...)`, `WITHIN GROUP (...)`, `UNION (...)`, `ALL/ANY (...)`,
+  `CAST(x AS NUMBER(10, 2))`, and CTE column lists such as `WITH n(i) AS (...)` (required for
+  recursive CTEs). More deterministic built-ins (`NTILE`, `PERCENTILE_CONT`, `GREATEST`, ...) are allowlisted.
+- Charts no longer fail on, or garble, database text and labels containing `$` (matplotlib mathtext).
 - Markdown column headers are escaped like cell values, so exotic identifiers cannot break the table.
 - `get_table_schema` primary-key lookup is scoped by constraint owner, avoiding duplicate rows when
   another schema holds a same-named constraint.
