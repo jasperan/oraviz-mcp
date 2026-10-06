@@ -932,7 +932,7 @@ def create_chart(
                 )
                 if dimensions > 4096:
                     raise ValueError("Chart vector dimensions exceed 4096")
-        rows = [tuple(format_value(value) if isinstance(value, str) or hasattr(value, "read")
+        rows = [tuple(format_value(value) if isinstance(value, (str, date, time)) or hasattr(value, "read")
                       else value for value in row) for row in rows]
         columns = [_cell_text(column) for column in columns]
         png = render_chart(columns, rows, chart_type, title=title, x_label=x_label, y_label=y_label)

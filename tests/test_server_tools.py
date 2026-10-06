@@ -4,6 +4,7 @@ Tests for the Oracle Viz MCP server tools, with python-oracledb mocked out.
 """
 
 import array
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import oracledb
@@ -501,6 +502,24 @@ class TestCreateChart:
         assert image.data.startswith(PNG_MAGIC)
         assert "Rendered a `bar` chart" in summary
         assert "| East | 10 |" in summary
+
+    def test_date_labels_drop_midnight_time(self, monkeypatch):
+        configure(monkeypatch)
+        patch_connection(
+            monkeypatch,
+            {
+                "description": [("SALE_MONTH",), ("REVENUE",)],
+                "rows": [(datetime(2025, 10, 1), 10), (datetime(2025, 11, 1), 20)],
+            },
+        )
+        plotted = []
+        real_render = server.render_chart
+        monkeypatch.setattr(
+            server, "render_chart",
+            lambda columns, rows, *args, **kwargs: plotted.extend(rows) or real_render(columns, rows, *args, **kwargs),
+        )
+        create_chart("SELECT sale_month, revenue FROM t", "line")
+        assert [row[0] for row in plotted] == ["2025-10-01", "2025-11-01"]
 
     def test_truncation_note(self, monkeypatch):
         configure(monkeypatch, max_rows=2)
