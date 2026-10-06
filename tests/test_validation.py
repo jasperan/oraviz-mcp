@@ -116,6 +116,11 @@ class TestFormatValue:
         assert format_value(decimal.Decimal("12345678901234567890.12")) == "12345678901234567890.12"
         assert format_value(decimal.Decimal("0.1")) == 0.1
 
+    def test_json_documents_render_as_compact_json(self):
+        document = {"a": decimal.Decimal("1"), "b": [decimal.Decimal("2.5"), None], "c": "é", "d": date(2026, 9, 14)}
+        assert format_value(document) == '{"a":1,"b":[2.5,null],"c":"é","d":"2026-09-14"}'
+        assert format_value([decimal.Decimal("Infinity")]) == '["Infinity"]'
+
     def test_dates(self):
         assert format_value(datetime(2026, 9, 14, 0, 0)) == "2026-09-14"
         assert format_value(datetime(2026, 9, 14, 12, 30, 5)) == "2026-09-14T12:30:05"

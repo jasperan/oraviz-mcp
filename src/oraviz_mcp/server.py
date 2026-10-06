@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import array
 import decimal
+import json
 import math
 import os
 import re
@@ -279,6 +280,17 @@ def _lob_locator(cursor, metadata):
     return None
 
 
+def _json_default(value: Any) -> Any:
+    """Serialize the non-JSON scalars python-oracledb puts inside JSON documents."""
+    if isinstance(value, decimal.Decimal):
+        if not value.is_finite():
+            return str(value)
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, (bytes, bytearray)):
+        return value.hex()
+    return str(value)
+
+
 def format_value(value: Any) -> Any:
     """Convert an Oracle value into something JSON-friendly and context-friendly."""
     if value is None or isinstance(value, (bool, int)):
@@ -305,7 +317,13 @@ def format_value(value: Any) -> Any:
     if hasattr(value, "read"):
         # Never read a whole LOB, or a BFILE pointing at the database filesystem.
         return "<LOB>"
-    text = str(value)
+    if isinstance(value, (dict, list)):  # JSON column
+        try:
+            text = json.dumps(value, default=_json_default, separators=(",", ":"), ensure_ascii=False)
+        except (TypeError, ValueError):
+            text = str(value)
+    else:
+        text = str(value)
     limit = config.max_cell_chars
     return text if len(text) <= limit else text[:limit] + "..."
 
