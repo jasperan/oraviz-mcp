@@ -39,7 +39,7 @@
     <div class="hero-grid">
       <div class="hero-copy">
         <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span> MCP server for Oracle AI Database 26ai</p>
-        <h1 class="reveal" style="--i:1">Ask your Oracle data.<br>Get a compact table, a chart, <em>and a token bill you can plan for.</em></h1>
+        <h1 class="reveal" style="--i:1">Ask your Oracle data. Get a table, a chart, <em>and the token bill</em>.</h1>
         <p class="lede reveal" style="--i:2">
           OraViz is a minimal, visualization-first MCP server: seven read-oriented tools and a
           context contract on every result — preview caps with honest truncation markers, cells
@@ -57,15 +57,15 @@
         <dl class="hero-stats reveal" style="--i:4">
           <div>
             <dt>53.3%</dt>
-            <dd>fewer tokens for the five-question workflow, schemas included</dd>
+            <dd>fewer workflow tokens for the five-question run, schemas included</dd>
           </div>
           <div>
-            <dt>862 <span class="unit">vs 2,139</span></dt>
-            <dd>tokens of tool schemas, read once per session</dd>
+            <dt>862</dt>
+            <dd>tokens of tool schemas, read once per session — <span class="mono">vs 2,139</span></dd>
           </div>
           <div>
-            <dt>123 <span class="unit">tok + PNG</span></dt>
-            <dd>text cost of answering the comparison question with a chart</dd>
+            <dt>123</dt>
+            <dd>text tokens to answer the comparison question with a chart — plus one PNG</dd>
           </div>
         </dl>
       </div>
@@ -84,7 +84,7 @@
 | North  | 502897   |
 | South  | 432190   |
 | West   | 360759   |</code></pre>
-          <div class="window-foot"><span class="pulse" aria-hidden="true"></span> context contract active · preview cap 25 rows · cells ≤ 500 chars</div>
+          <div class="window-foot"><span class="dot" aria-hidden="true"></span> context contract active · 25-row cap · cells ≤ 500 chars</div>
         </div>
         <figure class="hero-fig reveal" style="--i:3">
           <img src="images/example-bar.png" width="1280" height="640"
@@ -180,16 +180,16 @@ ORDER BY total_revenue DESC;</code></pre>
 
     <div class="bench-grid">
       <div class="bench-hero reveal">
-        <span class="bench-big">−53.3%</span>
-        <p>workflow tokens, schemas included — 2,337 vs 5,006. The savings concentrate where context
-          would otherwise grow: tool schemas (−59.7%), schema discovery (−80.5%), and an
-          unaggregated 96-row dump (−61.4%).</p>
+        <span class="bench-big">2,337</span>
+        <span class="bench-vs">workflow tokens, against <span class="mono">5,006</span> for SQLcl</span>
+        <p>The savings concentrate where context would otherwise grow: tool schemas (−59.7%),
+          schema discovery (−80.5%), and an unaggregated 96-row dump (−61.4%).</p>
       </div>
       <ul class="bench-list reveal" style="--i:1">
-        <li><span class="mono">−80.5%</span> listing schema objects: 69 vs 354 tokens</li>
-        <li><span class="mono">−61.4%</span> full 96-row dump: 825 vs 2,136 tokens</li>
-        <li><span class="mono">−59.7%</span> tool schemas: 862 vs 2,139 tokens</li>
-        <li><span class="mono">+55%</span> ten-row sample framing — bounded by design, not by data</li>
+        <li><span class="mono delta">−80.5%</span> listing schema objects: 69 vs 354 tokens</li>
+        <li><span class="mono delta">−61.4%</span> full 96-row dump: 825 vs 2,136 tokens</li>
+        <li><span class="mono delta">−59.7%</span> tool schemas: 862 vs 2,139 tokens</li>
+        <li><span class="mono delta">+55%</span> ten-row sample framing — bounded by design, not by data</li>
         <li><span class="mono">123 tok</span> chart path: aggregate rendered to PNG, no SQLcl equivalent</li>
       </ul>
     </div>
