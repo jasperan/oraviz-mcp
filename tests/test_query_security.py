@@ -203,6 +203,22 @@ def test_oversized_vector_rejected(monkeypatch):
         server.create_chart("SELECT name, embedding FROM t", "vector")
 
 
+def test_chart_vector_total_budget_rejected(monkeypatch):
+    rows = [(i, array.array("f", [0.0] * 4096)) for i in range(300)]
+    patch_connection(monkeypatch, {"description": [("ID",), ("VECTOR",)], "rows": rows})
+    render = MagicMock()
+    monkeypatch.setattr(server, "render_chart", render)
+    with pytest.raises(ValueError, match="rendering budget"):
+        server.create_chart("SELECT id, embedding FROM t", "vector")
+    render.assert_not_called()
+
+
+def test_backslash_pipe_cannot_split_cell():
+    # An odd run of backslashes before a pipe keeps it inside the cell.
+    assert server._cell_text("x\\|y") == "x\\\\\\|y"
+    assert server._cell_text("x\\\\|y") == "x\\\\\\\\\\|y"
+
+
 def test_chart_image_budget(monkeypatch):
     patch_connection(monkeypatch, {"description": [("A",)], "rows": [(1,)]})
     monkeypatch.setattr(server, "render_chart", lambda *a, **kw: b"x" * 2_000_001)

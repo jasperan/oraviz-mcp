@@ -352,7 +352,7 @@ def _fetch_rows(cursor: oracledb.Cursor, limit: int) -> Tuple[List[str], List[tu
 
 def _escape_text(text: str) -> str:
     """Keep a value from breaking out of its markdown table cell."""
-    return text.replace("|", "\\|").replace("\r", "").replace("\n", " ")
+    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\r", "").replace("\n", " ")
 
 
 def _cell_text(value: Any) -> str:
@@ -925,6 +925,7 @@ def create_chart(
     logger.debug("Rendering chart", chart_type=chart_type)
     try:
         columns, rows, truncated = _run_query(sql, config.max_rows)
+        total_values = 0
         for row in rows:
             for value in row:
                 dimensions = len(value) if isinstance(value, (array.array, list, tuple)) else (
@@ -932,6 +933,9 @@ def create_chart(
                 )
                 if dimensions > 4096:
                     raise ValueError("Chart vector dimensions exceed 4096")
+                total_values += dimensions
+        if total_values > 1_000_000:
+            raise ValueError("Chart vector data exceeds the rendering budget; select fewer rows or dimensions")
         rows = [tuple(format_value(value) if isinstance(value, (str, date, time)) or hasattr(value, "read")
                       else value for value in row) for row in rows]
         columns = [_cell_text(column) for column in columns]
